@@ -1,0 +1,309 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { UserProfile } from "../backend.d";
+import { useActor } from "./useActor";
+
+// ── Strategies ──────────────────────────────────────────────────────────────
+
+export function useStrategies() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["strategies"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getStrategies();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useToggleStrategy() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: bigint) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.toggleStrategy(id);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["strategies"] });
+    },
+  });
+}
+
+export function useAddStrategy() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: {
+      name: string;
+      shortWindow: bigint;
+      longWindow: bigint;
+      stopLossPercent: number;
+      targetPercent: number;
+      positionSize: bigint;
+    }) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.addStrategy(
+        params.name,
+        params.shortWindow,
+        params.longWindow,
+        params.stopLossPercent,
+        params.targetPercent,
+        params.positionSize,
+      );
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["strategies"] });
+    },
+  });
+}
+
+// ── Trades ───────────────────────────────────────────────────────────────────
+
+export function useMyTrades() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["myTrades"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getMyTrades();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useAllTrades() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["allTrades"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getAllTrades();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useAddTrade() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: {
+      symbol: string;
+      strategyName: string;
+      side: string;
+      quantity: bigint;
+      price: number;
+      mode: string;
+    }) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.addTrade(
+        params.symbol,
+        params.strategyName,
+        params.side,
+        params.quantity,
+        params.price,
+        params.mode,
+      );
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["myTrades"] });
+      void queryClient.invalidateQueries({ queryKey: ["allTrades"] });
+    },
+  });
+}
+
+// ── Broker Config ─────────────────────────────────────────────────────────────
+
+export function useBrokerConfig() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["brokerConfig"],
+    queryFn: async () => {
+      if (!actor) return null;
+      return actor.getBrokerConfig();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useSaveBrokerConfig() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: {
+      apiKey: string;
+      secret: string;
+      tradingMode: string;
+    }) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.saveBrokerConfig(
+        params.apiKey,
+        params.secret,
+        params.tradingMode,
+      );
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["brokerConfig"] });
+    },
+  });
+}
+
+export function useToggleAlgorithm() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.toggleAlgorithm();
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["brokerConfig"] });
+    },
+  });
+}
+
+export function useSetTradingMode() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (mode: string) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.setTradingMode(mode);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["brokerConfig"] });
+    },
+  });
+}
+
+// ── User Profile ──────────────────────────────────────────────────────────────
+
+export function useUserProfile() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["userProfile"],
+    queryFn: async () => {
+      if (!actor) return null;
+      return actor.getCallerUserProfile();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useSaveUserProfile() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (profile: UserProfile) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.saveCallerUserProfile(profile);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["userProfile"] });
+    },
+  });
+}
+
+export function useUserRole() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["userRole"],
+    queryFn: async () => {
+      if (!actor) return null;
+      return actor.getCallerUserRole();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useIsAdmin() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["isAdmin"],
+    queryFn: async () => {
+      if (!actor) return false;
+      return actor.isCallerAdmin();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+// ── Candles ───────────────────────────────────────────────────────────────────
+
+export function useCandles(
+  symbol: string,
+  timeframe: string,
+  limit: bigint,
+  enabled = true,
+) {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["candles", symbol, timeframe, limit.toString()],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getCandles(symbol, timeframe, limit);
+    },
+    enabled: !!actor && !isFetching && enabled,
+  });
+}
+
+// ── Backtest Results ──────────────────────────────────────────────────────────
+
+export function useMyBacktestResults() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["myBacktestResults"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getMyBacktestResults();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useSaveBacktestResult() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: {
+      strategyId: bigint;
+      symbol: string;
+      timeframe: string;
+      totalPnl: number;
+      winRate: number;
+      maxDrawdown: number;
+      sharpeRatio: number;
+      totalTrades: bigint;
+    }) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.saveBacktestResult(
+        params.strategyId,
+        params.symbol,
+        params.timeframe,
+        params.totalPnl,
+        params.winRate,
+        params.maxDrawdown,
+        params.sharpeRatio,
+        params.totalTrades,
+      );
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["myBacktestResults"] });
+    },
+  });
+}
+
+// ── Admin Stats ───────────────────────────────────────────────────────────────
+
+export function useAdminStats() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["adminStats"],
+    queryFn: async () => {
+      if (!actor) return null;
+      return actor.getAdminStats();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}

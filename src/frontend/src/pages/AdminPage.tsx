@@ -20,7 +20,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useNavigate } from "@tanstack/react-router";
 import {
   Activity,
   AlertTriangle,
@@ -46,27 +45,13 @@ import {
   useAddStrategy,
   useAdminStats,
   useAllTrades,
-  useIsAdmin,
   useStrategies,
   useToggleStrategy,
 } from "../hooks/useQueries";
 
 function useAuthGuard() {
-  const { identity, isInitializing } = useInternetIdentity();
-  const { data: isAdmin, isLoading: adminLoading } = useIsAdmin();
-  const navigate = useNavigate();
-
-  const isLoggedIn = !!identity && !identity.getPrincipal().isAnonymous();
-
-  if (!isInitializing && !isLoggedIn) {
-    void navigate({ to: "/login" });
-  }
-
-  if (!isInitializing && !adminLoading && isLoggedIn && isAdmin === false) {
-    void navigate({ to: "/dashboard" });
-  }
-
-  return { isLoggedIn, isInitializing, isAdmin, adminLoading };
+  const { isInitializing } = useInternetIdentity();
+  return { isInitializing };
 }
 
 // ── Stats Card ────────────────────────────────────────────────────────────────
@@ -752,12 +737,93 @@ function AllTradesTab() {
   );
 }
 
+// ── Password Gate ─────────────────────────────────────────────────────────────
+
+const ADMIN_PASSWORD = "Santhosh1@";
+
+function AdminPasswordGate({ onSuccess }: { onSuccess: () => void }) {
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (password === ADMIN_PASSWORD) {
+      sessionStorage.setItem("admin_auth", "1");
+      onSuccess();
+    } else {
+      setError(true);
+      setPassword("");
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background px-4">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35 }}
+        className="w-full max-w-sm"
+      >
+        <Card className="bg-card/80 border-border shadow-lg">
+          <CardHeader className="text-center pb-4">
+            <div className="mx-auto w-12 h-12 rounded-xl bg-warning/10 border border-warning/20 flex items-center justify-center mb-3">
+              <ShieldCheck className="w-6 h-6 text-warning" />
+            </div>
+            <CardTitle className="font-display text-xl">Admin Access</CardTitle>
+            <CardDescription className="text-sm">
+              Enter the admin password to continue
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Password</Label>
+                <Input
+                  type="password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setError(false);
+                  }}
+                  placeholder="Enter admin password"
+                  className={`h-10 bg-input ${error ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                  autoFocus
+                  data-ocid="admin.password.input"
+                />
+                {error && (
+                  <p
+                    className="text-xs text-destructive"
+                    data-ocid="admin.password.error_state"
+                  >
+                    Incorrect password. Please try again.
+                  </p>
+                )}
+              </div>
+              <Button
+                type="submit"
+                className="w-full gap-2"
+                data-ocid="admin.password.submit_button"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                Enter Admin Panel
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </motion.div>
+    </div>
+  );
+}
+
 // ── Main Admin Page ───────────────────────────────────────────────────────────
 
 export function AdminPage() {
-  const { isLoggedIn, isInitializing, isAdmin, adminLoading } = useAuthGuard();
+  const { isInitializing } = useAuthGuard();
+  const [authenticated, setAuthenticated] = useState(
+    () => sessionStorage.getItem("admin_auth") === "1",
+  );
 
-  if (isInitializing || adminLoading) {
+  if (isInitializing) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2
@@ -768,7 +834,9 @@ export function AdminPage() {
     );
   }
 
-  if (!isLoggedIn || isAdmin === false) return null;
+  if (!authenticated) {
+    return <AdminPasswordGate onSuccess={() => setAuthenticated(true)} />;
+  }
 
   return (
     <div className="flex flex-col min-h-screen">

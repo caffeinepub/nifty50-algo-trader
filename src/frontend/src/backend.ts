@@ -102,18 +102,11 @@ export interface BacktestResult {
     symbol: string;
     strategyId: bigint;
 }
-export interface Trade {
-    id: bigint;
-    pnl: number;
-    status: string;
-    userId: string;
-    mode: string;
-    side: string;
-    timestamp: bigint;
-    quantity: bigint;
-    price: number;
-    strategyName: string;
-    symbol: string;
+export interface RiskSettings {
+    autoShutdown: boolean;
+    maxDailyLoss: number;
+    maxTradesPerDay: bigint;
+    maxCapitalPerTrade: number;
 }
 export interface Candle {
     low: number;
@@ -126,13 +119,34 @@ export interface Candle {
     symbol: string;
 }
 export interface BrokerConfig {
+    redirectUrl: string;
+    paperMode: boolean;
     secret: string;
+    webhook: string;
     algorithmEnabled: boolean;
     apiKey: string;
+    accessToken: string;
+    liveMode: boolean;
     tradingMode: string;
+}
+export interface Trade {
+    id: bigint;
+    pnl: number;
+    status: string;
+    userId: string;
+    mode: string;
+    side: string;
+    stopLoss: number;
+    timestamp: bigint;
+    quantity: bigint;
+    price: number;
+    strategyName: string;
+    symbol: string;
 }
 export interface Strategy {
     id: bigint;
+    algorithmFile: string;
+    riskPercent: number;
     name: string;
     shortWindow: bigint;
     longWindow: bigint;
@@ -152,10 +166,21 @@ export enum UserRole {
 }
 export interface backendInterface {
     _initializeAccessControlWithSecret(userSecret: string): Promise<void>;
-    addStrategy(name: string, shortWindow: bigint, longWindow: bigint, stopLossPercent: number, targetPercent: number, positionSize: bigint): Promise<bigint>;
+    addStrategy(name: string, shortWindow: bigint, longWindow: bigint, stopLossPercent: number, targetPercent: number, positionSize: bigint, riskPercent: number, algorithmFile: string): Promise<bigint>;
     addTrade(symbol: string, strategyName: string, side: string, quantity: bigint, price: number, mode: string): Promise<bigint>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
+    closeTrade(id: bigint): Promise<void>;
+    exitAllTrades(): Promise<void>;
     forceAddDailyCandle(open: number, high: number, low: number, close: number, volume: bigint, symbol: string, timeframe: string, timestamp: bigint): Promise<void>;
+    getAdminDashboardStats(): Promise<{
+        activeStrategies: bigint;
+        todayPnl: number;
+        squareOffMode: boolean;
+        accountBalance: number;
+        activeTrades: bigint;
+        totalStrategies: bigint;
+        winRate: number;
+    }>;
     getAdminStats(): Promise<{
         totalTrades: bigint;
         totalPnl: number;
@@ -169,14 +194,19 @@ export interface backendInterface {
     getCandles(symbol: string, timeframe: string, limit: bigint): Promise<Array<Candle>>;
     getMyBacktestResults(): Promise<Array<BacktestResult>>;
     getMyTrades(): Promise<Array<Trade>>;
+    getRiskSettings(): Promise<RiskSettings>;
+    getSquareOffMode(): Promise<boolean>;
     getStrategies(): Promise<Array<Strategy>>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     isCallerAdmin(): Promise<boolean>;
+    modifyStopLoss(tradeId: bigint, newStopLoss: number): Promise<void>;
     saveBacktestResult(strategyId: bigint, symbol: string, timeframe: string, totalPnl: number, winRate: number, maxDrawdown: number, sharpeRatio: number, totalTrades: bigint): Promise<bigint>;
-    saveBrokerConfig(apiKey: string, secret: string, tradingMode: string): Promise<void>;
+    saveBrokerConfig(apiKey: string, secret: string, accessToken: string, redirectUrl: string, webhook: string, paperMode: boolean, liveMode: boolean, tradingMode: string): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
+    saveRiskSettings(maxDailyLoss: number, maxTradesPerDay: bigint, maxCapitalPerTrade: number, autoShutdown: boolean): Promise<void>;
     setTradingMode(mode: string): Promise<void>;
     toggleAlgorithm(): Promise<void>;
+    toggleSquareOffMode(): Promise<void>;
     toggleStrategy(id: bigint): Promise<void>;
     updateTrade(id: bigint, status: string, pnl: number): Promise<void>;
 }
@@ -197,17 +227,17 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async addStrategy(arg0: string, arg1: bigint, arg2: bigint, arg3: number, arg4: number, arg5: bigint): Promise<bigint> {
+    async addStrategy(arg0: string, arg1: bigint, arg2: bigint, arg3: number, arg4: number, arg5: bigint, arg6: number, arg7: string): Promise<bigint> {
         if (this.processError) {
             try {
-                const result = await this.actor.addStrategy(arg0, arg1, arg2, arg3, arg4, arg5);
+                const result = await this.actor.addStrategy(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.addStrategy(arg0, arg1, arg2, arg3, arg4, arg5);
+            const result = await this.actor.addStrategy(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
             return result;
         }
     }
@@ -239,6 +269,34 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async closeTrade(arg0: bigint): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.closeTrade(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.closeTrade(arg0);
+            return result;
+        }
+    }
+    async exitAllTrades(): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.exitAllTrades();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.exitAllTrades();
+            return result;
+        }
+    }
     async forceAddDailyCandle(arg0: number, arg1: number, arg2: number, arg3: number, arg4: bigint, arg5: string, arg6: string, arg7: bigint): Promise<void> {
         if (this.processError) {
             try {
@@ -250,6 +308,28 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.forceAddDailyCandle(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+            return result;
+        }
+    }
+    async getAdminDashboardStats(): Promise<{
+        activeStrategies: bigint;
+        todayPnl: number;
+        squareOffMode: boolean;
+        accountBalance: number;
+        activeTrades: bigint;
+        totalStrategies: bigint;
+        winRate: number;
+    }> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getAdminDashboardStats();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getAdminDashboardStats();
             return result;
         }
     }
@@ -370,6 +450,34 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async getRiskSettings(): Promise<RiskSettings> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getRiskSettings();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getRiskSettings();
+            return result;
+        }
+    }
+    async getSquareOffMode(): Promise<boolean> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getSquareOffMode();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getSquareOffMode();
+            return result;
+        }
+    }
     async getStrategies(): Promise<Array<Strategy>> {
         if (this.processError) {
             try {
@@ -412,6 +520,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async modifyStopLoss(arg0: bigint, arg1: number): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.modifyStopLoss(arg0, arg1);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.modifyStopLoss(arg0, arg1);
+            return result;
+        }
+    }
     async saveBacktestResult(arg0: bigint, arg1: string, arg2: string, arg3: number, arg4: number, arg5: number, arg6: number, arg7: bigint): Promise<bigint> {
         if (this.processError) {
             try {
@@ -426,17 +548,17 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async saveBrokerConfig(arg0: string, arg1: string, arg2: string): Promise<void> {
+    async saveBrokerConfig(arg0: string, arg1: string, arg2: string, arg3: string, arg4: string, arg5: boolean, arg6: boolean, arg7: string): Promise<void> {
         if (this.processError) {
             try {
-                const result = await this.actor.saveBrokerConfig(arg0, arg1, arg2);
+                const result = await this.actor.saveBrokerConfig(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.saveBrokerConfig(arg0, arg1, arg2);
+            const result = await this.actor.saveBrokerConfig(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
             return result;
         }
     }
@@ -451,6 +573,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.saveCallerUserProfile(arg0);
+            return result;
+        }
+    }
+    async saveRiskSettings(arg0: number, arg1: bigint, arg2: number, arg3: boolean): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.saveRiskSettings(arg0, arg1, arg2, arg3);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.saveRiskSettings(arg0, arg1, arg2, arg3);
             return result;
         }
     }
@@ -479,6 +615,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.toggleAlgorithm();
+            return result;
+        }
+    }
+    async toggleSquareOffMode(): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.toggleSquareOffMode();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.toggleSquareOffMode();
             return result;
         }
     }

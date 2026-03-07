@@ -41,6 +41,8 @@ export function useAddStrategy() {
       stopLossPercent: number;
       targetPercent: number;
       positionSize: bigint;
+      riskPercent: number;
+      algorithmFile: string;
     }) => {
       if (!actor) throw new Error("Not authenticated");
       return actor.addStrategy(
@@ -50,6 +52,8 @@ export function useAddStrategy() {
         params.stopLossPercent,
         params.targetPercent,
         params.positionSize,
+        params.riskPercent,
+        params.algorithmFile,
       );
     },
     onSuccess: () => {
@@ -113,6 +117,48 @@ export function useAddTrade() {
   });
 }
 
+export function useCloseTrade() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: bigint) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.closeTrade(id);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["allTrades"] });
+    },
+  });
+}
+
+export function useExitAllTrades() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.exitAllTrades();
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["allTrades"] });
+    },
+  });
+}
+
+export function useModifyStopLoss() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { tradeId: bigint; newStopLoss: number }) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.modifyStopLoss(params.tradeId, params.newStopLoss);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["allTrades"] });
+    },
+  });
+}
+
 // ── Broker Config ─────────────────────────────────────────────────────────────
 
 export function useBrokerConfig() {
@@ -134,12 +180,22 @@ export function useSaveBrokerConfig() {
     mutationFn: async (params: {
       apiKey: string;
       secret: string;
+      accessToken: string;
+      redirectUrl: string;
+      webhook: string;
+      paperMode: boolean;
+      liveMode: boolean;
       tradingMode: string;
     }) => {
       if (!actor) throw new Error("Not authenticated");
       return actor.saveBrokerConfig(
         params.apiKey,
         params.secret,
+        params.accessToken,
+        params.redirectUrl,
+        params.webhook,
+        params.paperMode,
+        params.liveMode,
         params.tradingMode,
       );
     },
@@ -173,6 +229,73 @@ export function useSetTradingMode() {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["brokerConfig"] });
+    },
+  });
+}
+
+// ── Risk Settings ─────────────────────────────────────────────────────────────
+
+export function useRiskSettings() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["riskSettings"],
+    queryFn: async () => {
+      if (!actor) return null;
+      return actor.getRiskSettings();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useSaveRiskSettings() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: {
+      maxDailyLoss: number;
+      maxTradesPerDay: bigint;
+      maxCapitalPerTrade: number;
+      autoShutdown: boolean;
+    }) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.saveRiskSettings(
+        params.maxDailyLoss,
+        params.maxTradesPerDay,
+        params.maxCapitalPerTrade,
+        params.autoShutdown,
+      );
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["riskSettings"] });
+    },
+  });
+}
+
+// ── Admin Dashboard Stats ─────────────────────────────────────────────────────
+
+export function useAdminDashboardStats() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["adminDashboardStats"],
+    queryFn: async () => {
+      if (!actor) return null;
+      return actor.getAdminDashboardStats();
+    },
+    enabled: !!actor && !isFetching,
+    refetchInterval: 10000,
+  });
+}
+
+export function useToggleSquareOffMode() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.toggleSquareOffMode();
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["adminDashboardStats"] });
     },
   });
 }
@@ -294,7 +417,7 @@ export function useSaveBacktestResult() {
   });
 }
 
-// ── Admin Stats ───────────────────────────────────────────────────────────────
+// ── Admin Stats (legacy) ──────────────────────────────────────────────────────
 
 export function useAdminStats() {
   const { actor, isFetching } = useActor();

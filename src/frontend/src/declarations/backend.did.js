@@ -20,6 +20,7 @@ export const Trade = IDL.Record({
   'userId' : IDL.Text,
   'mode' : IDL.Text,
   'side' : IDL.Text,
+  'stopLoss' : IDL.Float64,
   'timestamp' : IDL.Int,
   'quantity' : IDL.Nat,
   'price' : IDL.Float64,
@@ -27,9 +28,14 @@ export const Trade = IDL.Record({
   'symbol' : IDL.Text,
 });
 export const BrokerConfig = IDL.Record({
+  'redirectUrl' : IDL.Text,
+  'paperMode' : IDL.Bool,
   'secret' : IDL.Text,
+  'webhook' : IDL.Text,
   'algorithmEnabled' : IDL.Bool,
   'apiKey' : IDL.Text,
+  'accessToken' : IDL.Text,
+  'liveMode' : IDL.Bool,
   'tradingMode' : IDL.Text,
 });
 export const UserProfile = IDL.Record({
@@ -59,8 +65,16 @@ export const BacktestResult = IDL.Record({
   'symbol' : IDL.Text,
   'strategyId' : IDL.Nat,
 });
+export const RiskSettings = IDL.Record({
+  'autoShutdown' : IDL.Bool,
+  'maxDailyLoss' : IDL.Float64,
+  'maxTradesPerDay' : IDL.Nat,
+  'maxCapitalPerTrade' : IDL.Float64,
+});
 export const Strategy = IDL.Record({
   'id' : IDL.Nat,
+  'algorithmFile' : IDL.Text,
+  'riskPercent' : IDL.Float64,
   'name' : IDL.Text,
   'shortWindow' : IDL.Nat,
   'longWindow' : IDL.Nat,
@@ -73,7 +87,16 @@ export const Strategy = IDL.Record({
 export const idlService = IDL.Service({
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
   'addStrategy' : IDL.Func(
-      [IDL.Text, IDL.Nat, IDL.Nat, IDL.Float64, IDL.Float64, IDL.Nat],
+      [
+        IDL.Text,
+        IDL.Nat,
+        IDL.Nat,
+        IDL.Float64,
+        IDL.Float64,
+        IDL.Nat,
+        IDL.Float64,
+        IDL.Text,
+      ],
       [IDL.Nat],
       [],
     ),
@@ -83,6 +106,8 @@ export const idlService = IDL.Service({
       [],
     ),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+  'closeTrade' : IDL.Func([IDL.Nat], [], []),
+  'exitAllTrades' : IDL.Func([], [], []),
   'forceAddDailyCandle' : IDL.Func(
       [
         IDL.Float64,
@@ -96,6 +121,21 @@ export const idlService = IDL.Service({
       ],
       [],
       [],
+    ),
+  'getAdminDashboardStats' : IDL.Func(
+      [],
+      [
+        IDL.Record({
+          'activeStrategies' : IDL.Nat,
+          'todayPnl' : IDL.Float64,
+          'squareOffMode' : IDL.Bool,
+          'accountBalance' : IDL.Float64,
+          'activeTrades' : IDL.Nat,
+          'totalStrategies' : IDL.Nat,
+          'winRate' : IDL.Float64,
+        }),
+      ],
+      ['query'],
     ),
   'getAdminStats' : IDL.Func(
       [],
@@ -120,6 +160,8 @@ export const idlService = IDL.Service({
     ),
   'getMyBacktestResults' : IDL.Func([], [IDL.Vec(BacktestResult)], ['query']),
   'getMyTrades' : IDL.Func([], [IDL.Vec(Trade)], ['query']),
+  'getRiskSettings' : IDL.Func([], [RiskSettings], ['query']),
+  'getSquareOffMode' : IDL.Func([], [IDL.Bool], ['query']),
   'getStrategies' : IDL.Func([], [IDL.Vec(Strategy)], ['query']),
   'getUserProfile' : IDL.Func(
       [IDL.Principal],
@@ -127,6 +169,7 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+  'modifyStopLoss' : IDL.Func([IDL.Nat, IDL.Float64], [], []),
   'saveBacktestResult' : IDL.Func(
       [
         IDL.Nat,
@@ -141,10 +184,29 @@ export const idlService = IDL.Service({
       [IDL.Nat],
       [],
     ),
-  'saveBrokerConfig' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [], []),
+  'saveBrokerConfig' : IDL.Func(
+      [
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        IDL.Bool,
+        IDL.Bool,
+        IDL.Text,
+      ],
+      [],
+      [],
+    ),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
+  'saveRiskSettings' : IDL.Func(
+      [IDL.Float64, IDL.Nat, IDL.Float64, IDL.Bool],
+      [],
+      [],
+    ),
   'setTradingMode' : IDL.Func([IDL.Text], [], []),
   'toggleAlgorithm' : IDL.Func([], [], []),
+  'toggleSquareOffMode' : IDL.Func([], [], []),
   'toggleStrategy' : IDL.Func([IDL.Nat], [], []),
   'updateTrade' : IDL.Func([IDL.Nat, IDL.Text, IDL.Float64], [], []),
 });
@@ -164,6 +226,7 @@ export const idlFactory = ({ IDL }) => {
     'userId' : IDL.Text,
     'mode' : IDL.Text,
     'side' : IDL.Text,
+    'stopLoss' : IDL.Float64,
     'timestamp' : IDL.Int,
     'quantity' : IDL.Nat,
     'price' : IDL.Float64,
@@ -171,9 +234,14 @@ export const idlFactory = ({ IDL }) => {
     'symbol' : IDL.Text,
   });
   const BrokerConfig = IDL.Record({
+    'redirectUrl' : IDL.Text,
+    'paperMode' : IDL.Bool,
     'secret' : IDL.Text,
+    'webhook' : IDL.Text,
     'algorithmEnabled' : IDL.Bool,
     'apiKey' : IDL.Text,
+    'accessToken' : IDL.Text,
+    'liveMode' : IDL.Bool,
     'tradingMode' : IDL.Text,
   });
   const UserProfile = IDL.Record({ 'name' : IDL.Text, 'email' : IDL.Text });
@@ -200,8 +268,16 @@ export const idlFactory = ({ IDL }) => {
     'symbol' : IDL.Text,
     'strategyId' : IDL.Nat,
   });
+  const RiskSettings = IDL.Record({
+    'autoShutdown' : IDL.Bool,
+    'maxDailyLoss' : IDL.Float64,
+    'maxTradesPerDay' : IDL.Nat,
+    'maxCapitalPerTrade' : IDL.Float64,
+  });
   const Strategy = IDL.Record({
     'id' : IDL.Nat,
+    'algorithmFile' : IDL.Text,
+    'riskPercent' : IDL.Float64,
     'name' : IDL.Text,
     'shortWindow' : IDL.Nat,
     'longWindow' : IDL.Nat,
@@ -214,7 +290,16 @@ export const idlFactory = ({ IDL }) => {
   return IDL.Service({
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
     'addStrategy' : IDL.Func(
-        [IDL.Text, IDL.Nat, IDL.Nat, IDL.Float64, IDL.Float64, IDL.Nat],
+        [
+          IDL.Text,
+          IDL.Nat,
+          IDL.Nat,
+          IDL.Float64,
+          IDL.Float64,
+          IDL.Nat,
+          IDL.Float64,
+          IDL.Text,
+        ],
         [IDL.Nat],
         [],
       ),
@@ -224,6 +309,8 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+    'closeTrade' : IDL.Func([IDL.Nat], [], []),
+    'exitAllTrades' : IDL.Func([], [], []),
     'forceAddDailyCandle' : IDL.Func(
         [
           IDL.Float64,
@@ -237,6 +324,21 @@ export const idlFactory = ({ IDL }) => {
         ],
         [],
         [],
+      ),
+    'getAdminDashboardStats' : IDL.Func(
+        [],
+        [
+          IDL.Record({
+            'activeStrategies' : IDL.Nat,
+            'todayPnl' : IDL.Float64,
+            'squareOffMode' : IDL.Bool,
+            'accountBalance' : IDL.Float64,
+            'activeTrades' : IDL.Nat,
+            'totalStrategies' : IDL.Nat,
+            'winRate' : IDL.Float64,
+          }),
+        ],
+        ['query'],
       ),
     'getAdminStats' : IDL.Func(
         [],
@@ -261,6 +363,8 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getMyBacktestResults' : IDL.Func([], [IDL.Vec(BacktestResult)], ['query']),
     'getMyTrades' : IDL.Func([], [IDL.Vec(Trade)], ['query']),
+    'getRiskSettings' : IDL.Func([], [RiskSettings], ['query']),
+    'getSquareOffMode' : IDL.Func([], [IDL.Bool], ['query']),
     'getStrategies' : IDL.Func([], [IDL.Vec(Strategy)], ['query']),
     'getUserProfile' : IDL.Func(
         [IDL.Principal],
@@ -268,6 +372,7 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+    'modifyStopLoss' : IDL.Func([IDL.Nat, IDL.Float64], [], []),
     'saveBacktestResult' : IDL.Func(
         [
           IDL.Nat,
@@ -282,10 +387,29 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Nat],
         [],
       ),
-    'saveBrokerConfig' : IDL.Func([IDL.Text, IDL.Text, IDL.Text], [], []),
+    'saveBrokerConfig' : IDL.Func(
+        [
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Bool,
+          IDL.Bool,
+          IDL.Text,
+        ],
+        [],
+        [],
+      ),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
+    'saveRiskSettings' : IDL.Func(
+        [IDL.Float64, IDL.Nat, IDL.Float64, IDL.Bool],
+        [],
+        [],
+      ),
     'setTradingMode' : IDL.Func([IDL.Text], [], []),
     'toggleAlgorithm' : IDL.Func([], [], []),
+    'toggleSquareOffMode' : IDL.Func([], [], []),
     'toggleStrategy' : IDL.Func([IDL.Nat], [], []),
     'updateTrade' : IDL.Func([IDL.Nat, IDL.Text, IDL.Float64], [], []),
   });

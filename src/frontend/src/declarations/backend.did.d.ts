@@ -24,9 +24,14 @@ export interface BacktestResult {
   'strategyId' : bigint,
 }
 export interface BrokerConfig {
+  'redirectUrl' : string,
+  'paperMode' : boolean,
   'secret' : string,
+  'webhook' : string,
   'algorithmEnabled' : boolean,
   'apiKey' : string,
+  'accessToken' : string,
+  'liveMode' : boolean,
   'tradingMode' : string,
 }
 export interface Candle {
@@ -39,8 +44,16 @@ export interface Candle {
   'timestamp' : bigint,
   'symbol' : string,
 }
+export interface RiskSettings {
+  'autoShutdown' : boolean,
+  'maxDailyLoss' : number,
+  'maxTradesPerDay' : bigint,
+  'maxCapitalPerTrade' : number,
+}
 export interface Strategy {
   'id' : bigint,
+  'algorithmFile' : string,
+  'riskPercent' : number,
   'name' : string,
   'shortWindow' : bigint,
   'longWindow' : bigint,
@@ -56,6 +69,7 @@ export interface Trade {
   'userId' : string,
   'mode' : string,
   'side' : string,
+  'stopLoss' : number,
   'timestamp' : bigint,
   'quantity' : bigint,
   'price' : number,
@@ -69,7 +83,7 @@ export type UserRole = { 'admin' : null } |
 export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'addStrategy' : ActorMethod<
-    [string, bigint, bigint, number, number, bigint],
+    [string, bigint, bigint, number, number, bigint, number, string],
     bigint
   >,
   'addTrade' : ActorMethod<
@@ -77,9 +91,23 @@ export interface _SERVICE {
     bigint
   >,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
+  'closeTrade' : ActorMethod<[bigint], undefined>,
+  'exitAllTrades' : ActorMethod<[], undefined>,
   'forceAddDailyCandle' : ActorMethod<
     [number, number, number, number, bigint, string, string, bigint],
     undefined
+  >,
+  'getAdminDashboardStats' : ActorMethod<
+    [],
+    {
+      'activeStrategies' : bigint,
+      'todayPnl' : number,
+      'squareOffMode' : boolean,
+      'accountBalance' : number,
+      'activeTrades' : bigint,
+      'totalStrategies' : bigint,
+      'winRate' : number,
+    }
   >,
   'getAdminStats' : ActorMethod<
     [],
@@ -97,17 +125,28 @@ export interface _SERVICE {
   'getCandles' : ActorMethod<[string, string, bigint], Array<Candle>>,
   'getMyBacktestResults' : ActorMethod<[], Array<BacktestResult>>,
   'getMyTrades' : ActorMethod<[], Array<Trade>>,
+  'getRiskSettings' : ActorMethod<[], RiskSettings>,
+  'getSquareOffMode' : ActorMethod<[], boolean>,
   'getStrategies' : ActorMethod<[], Array<Strategy>>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
+  'modifyStopLoss' : ActorMethod<[bigint, number], undefined>,
   'saveBacktestResult' : ActorMethod<
     [bigint, string, string, number, number, number, number, bigint],
     bigint
   >,
-  'saveBrokerConfig' : ActorMethod<[string, string, string], undefined>,
+  'saveBrokerConfig' : ActorMethod<
+    [string, string, string, string, string, boolean, boolean, string],
+    undefined
+  >,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
+  'saveRiskSettings' : ActorMethod<
+    [number, bigint, number, boolean],
+    undefined
+  >,
   'setTradingMode' : ActorMethod<[string], undefined>,
   'toggleAlgorithm' : ActorMethod<[], undefined>,
+  'toggleSquareOffMode' : ActorMethod<[], undefined>,
   'toggleStrategy' : ActorMethod<[bigint], undefined>,
   'updateTrade' : ActorMethod<[bigint, string, number], undefined>,
 }

@@ -248,6 +248,11 @@ function BrokerConfigPanel() {
       await saveConfig({
         apiKey: apiKey || (config?.apiKey ?? ""),
         secret: apiSecret || (config?.secret ?? ""),
+        accessToken: config?.accessToken ?? "",
+        redirectUrl: config?.redirectUrl ?? "",
+        webhook: config?.webhook ?? "",
+        paperMode: config?.paperMode ?? true,
+        liveMode: config?.liveMode ?? false,
         tradingMode: config?.tradingMode ?? "paper",
       });
       setApiKey("");

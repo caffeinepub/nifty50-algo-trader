@@ -1,19 +1,19 @@
-// Import core libraries
 import Map "mo:core/Map";
-import Array "mo:core/Array";
 import List "mo:core/List";
-import Time "mo:core/Time";
-import Float "mo:core/Float";
+import Array "mo:core/Array";
 import Nat "mo:core/Nat";
 import Text "mo:core/Text";
+import Float "mo:core/Float";
 import Int "mo:core/Int";
 import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
-
-// Import prefabricated authorization component
+import Time "mo:core/Time";
+import Migration "migration";
 import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
 
+// Migrate previous state on upgrade
+(with migration = Migration.run)
 actor {
   // Type definitions
   type Candle = {
@@ -35,6 +35,8 @@ actor {
     stopLossPercent : Float;
     targetPercent : Float;
     positionSize : Nat;
+    riskPercent : Float;
+    algorithmFile : Text;
     enabled : Bool;
   };
 
@@ -50,6 +52,14 @@ actor {
     mode : Text;
     status : Text;
     pnl : Float;
+    stopLoss : Float;
+  };
+
+  type RiskSettings = {
+    maxDailyLoss : Float;
+    maxTradesPerDay : Nat;
+    maxCapitalPerTrade : Float;
+    autoShutdown : Bool;
   };
 
   type BacktestResult = {
@@ -69,6 +79,11 @@ actor {
   type BrokerConfig = {
     apiKey : Text;
     secret : Text;
+    accessToken : Text;
+    redirectUrl : Text;
+    webhook : Text;
+    paperMode : Bool;
+    liveMode : Bool;
     tradingMode : Text; // "paper" or "live"
     algorithmEnabled : Bool;
   };
@@ -87,6 +102,7 @@ actor {
   var strategyId = 1;
 
   var targetPnlAdd = 0.0;
+  var squareOffMode = false : Bool;
 
   var initialPrice = 22000.0;
   let candleArray = List.empty<Candle>();
@@ -96,6 +112,54 @@ actor {
   let backtestResults = Map.empty<Nat, BacktestResult>();
   let userConfigs = Map.empty<Principal, BrokerConfig>();
   let userProfiles = Map.empty<Principal, UserProfile>();
+  let riskSettings = Map.empty<Principal, RiskSettings>();
+
+  // Risk & square off features
+  public shared ({ caller }) func toggleSquareOffMode() : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can perform this action");
+    };
+    squareOffMode := not squareOffMode;
+  };
+
+  public query ({ caller }) func getSquareOffMode() : async Bool {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view square-off mode");
+    };
+    squareOffMode;
+  };
+
+  public query ({ caller }) func getRiskSettings() : async RiskSettings {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view risk settings");
+    };
+
+    switch (riskSettings.get(caller)) {
+      case (null) {
+        {
+          maxDailyLoss = 5000.0;
+          maxTradesPerDay = 5;
+          maxCapitalPerTrade = 2000.0;
+          autoShutdown = false;
+        };
+      };
+      case (?settings) { settings };
+    };
+  };
+
+  public shared ({ caller }) func saveRiskSettings(
+    maxDailyLoss : Float,
+    maxTradesPerDay : Nat,
+    maxCapitalPerTrade : Float,
+    autoShutdown : Bool,
+  ) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can save risk settings");
+    };
+
+    let settings : RiskSettings = { maxDailyLoss; maxTradesPerDay; maxCapitalPerTrade; autoShutdown };
+    riskSettings.add(caller, settings);
+  };
 
   // User profile functions (required by frontend)
   public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
@@ -120,7 +184,16 @@ actor {
   };
 
   // User broker config functions
-  public shared ({ caller }) func saveBrokerConfig(apiKey : Text, secret : Text, tradingMode : Text) : async () {
+  public shared ({ caller }) func saveBrokerConfig(
+    apiKey : Text,
+    secret : Text,
+    accessToken : Text,
+    redirectUrl : Text,
+    webhook : Text,
+    paperMode : Bool,
+    liveMode : Bool,
+    tradingMode : Text,
+  ) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can save broker config");
     };
@@ -128,6 +201,11 @@ actor {
     let config : BrokerConfig = {
       apiKey;
       secret;
+      accessToken;
+      redirectUrl;
+      webhook;
+      paperMode;
+      liveMode;
       tradingMode;
       algorithmEnabled = false;
     };
@@ -225,7 +303,16 @@ actor {
   };
 
   // Strategy config
-  public shared ({ caller }) func addStrategy(name : Text, shortWindow : Nat, longWindow : Nat, stopLossPercent : Float, targetPercent : Float, positionSize : Nat) : async Nat {
+  public shared ({ caller }) func addStrategy(
+    name : Text,
+    shortWindow : Nat,
+    longWindow : Nat,
+    stopLossPercent : Float,
+    targetPercent : Float,
+    positionSize : Nat,
+    riskPercent : Float,
+    algorithmFile : Text,
+  ) : async Nat {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only admins can perform this action");
     };
@@ -238,6 +325,8 @@ actor {
       stopLossPercent;
       targetPercent;
       positionSize;
+      riskPercent;
+      algorithmFile;
       enabled = true;
     };
 
@@ -267,7 +356,14 @@ actor {
   };
 
   // Trade log
-  public shared ({ caller }) func addTrade(symbol : Text, strategyName : Text, side : Text, quantity : Nat, price : Float, mode : Text) : async Nat {
+  public shared ({ caller }) func addTrade(
+    symbol : Text,
+    strategyName : Text,
+    side : Text,
+    quantity : Nat,
+    price : Float,
+    mode : Text,
+  ) : async Nat {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can add trades");
     };
@@ -284,6 +380,7 @@ actor {
       mode;
       status = "open";
       pnl = 0.0;
+      stopLoss = 0.0;
     };
 
     trades.add(tradeId, trade);
@@ -301,7 +398,6 @@ actor {
       case (?t) { t };
     };
 
-    // Verify ownership
     if (trade.userId != caller.toText() and not AccessControl.isAdmin(accessControlState, caller)) {
       Runtime.trap("Unauthorized: Can only update your own trades");
     };
@@ -333,8 +429,68 @@ actor {
     trades.values().toArray();
   };
 
+  // Trade admin features
+  public shared ({ caller }) func closeTrade(id : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can perform this action");
+    };
+
+    let trade = switch (trades.get(id)) {
+      case (null) { Runtime.trap("Trade not found") };
+      case (?t) { t };
+    };
+
+    let updated = {
+      trade with status = "closed";
+    };
+
+    trades.add(id, updated);
+  };
+
+  public shared ({ caller }) func exitAllTrades() : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can perform this action");
+    };
+
+    let tradeEntries = trades.toArray();
+    for ((id, trade) in tradeEntries.values()) {
+      if (trade.status == "open") {
+        let updated = {
+          trade with status = "closed";
+        };
+        trades.add(id, updated);
+      };
+    };
+  };
+
+  public shared ({ caller }) func modifyStopLoss(tradeId : Nat, newStopLoss : Float) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can perform this action");
+    };
+
+    let trade = switch (trades.get(tradeId)) {
+      case (null) { Runtime.trap("Trade not found") };
+      case (?t) { t };
+    };
+
+    let updated = {
+      trade with stopLoss = newStopLoss;
+    };
+
+    trades.add(tradeId, updated);
+  };
+
   // Backtest results
-  public shared ({ caller }) func saveBacktestResult(strategyId : Nat, symbol : Text, timeframe : Text, totalPnl : Float, winRate : Float, maxDrawdown : Float, sharpeRatio : Float, totalTrades : Nat) : async Nat {
+  public shared ({ caller }) func saveBacktestResult(
+    strategyId : Nat,
+    symbol : Text,
+    timeframe : Text,
+    totalPnl : Float,
+    winRate : Float,
+    maxDrawdown : Float,
+    sharpeRatio : Float,
+    totalTrades : Nat,
+  ) : async Nat {
     if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
       Runtime.trap("Unauthorized: Only users can save backtest results");
     };
@@ -398,6 +554,30 @@ actor {
       totalTrades = trades.size();
       totalPnl;
       openTrades;
+    };
+  };
+
+  public query ({ caller }) func getAdminDashboardStats() : async {
+    accountBalance : Float;
+    todayPnl : Float;
+    activeTrades : Nat;
+    winRate : Float;
+    squareOffMode : Bool;
+    totalStrategies : Nat;
+    activeStrategies : Nat;
+  } {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can perform this action");
+    };
+
+    {
+      accountBalance = 65000.0;
+      todayPnl = 8600.0;
+      activeTrades = 23;
+      winRate = 63.8;
+      squareOffMode;
+      totalStrategies = 15;
+      activeStrategies = 8;
     };
   };
 };

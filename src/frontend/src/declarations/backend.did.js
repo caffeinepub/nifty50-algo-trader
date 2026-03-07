@@ -65,6 +65,12 @@ export const BacktestResult = IDL.Record({
   'symbol' : IDL.Text,
   'strategyId' : IDL.Nat,
 });
+export const NinetwentyState = IDL.Record({
+  'line' : IDL.Float64,
+  'entry' : IDL.Float64,
+  'stopLoss' : IDL.Float64,
+  'signal' : IDL.Text,
+});
 export const RiskSettings = IDL.Record({
   'autoShutdown' : IDL.Bool,
   'maxDailyLoss' : IDL.Float64,
@@ -82,6 +88,7 @@ export const Strategy = IDL.Record({
   'enabled' : IDL.Bool,
   'stopLossPercent' : IDL.Float64,
   'targetPercent' : IDL.Float64,
+  'strategyType' : IDL.Text,
 });
 
 export const idlService = IDL.Service({
@@ -96,6 +103,7 @@ export const idlService = IDL.Service({
         IDL.Nat,
         IDL.Float64,
         IDL.Text,
+        IDL.Text,
       ],
       [IDL.Nat],
       [],
@@ -106,6 +114,7 @@ export const idlService = IDL.Service({
       [],
     ),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+  'clearNinetwentyState' : IDL.Func([], [], []),
   'closeTrade' : IDL.Func([IDL.Nat], [], []),
   'exitAllTrades' : IDL.Func([], [], []),
   'forceAddDailyCandle' : IDL.Func(
@@ -160,6 +169,8 @@ export const idlService = IDL.Service({
     ),
   'getMyBacktestResults' : IDL.Func([], [IDL.Vec(BacktestResult)], ['query']),
   'getMyTrades' : IDL.Func([], [IDL.Vec(Trade)], ['query']),
+  'getNinetwentyLine' : IDL.Func([], [IDL.Float64], ['query']),
+  'getNinetwentyState' : IDL.Func([], [NinetwentyState], ['query']),
   'getRiskSettings' : IDL.Func([], [RiskSettings], ['query']),
   'getSquareOffMode' : IDL.Func([], [IDL.Bool], ['query']),
   'getStrategies' : IDL.Func([], [IDL.Vec(Strategy)], ['query']),
@@ -201,6 +212,12 @@ export const idlService = IDL.Service({
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
   'saveRiskSettings' : IDL.Func(
       [IDL.Float64, IDL.Nat, IDL.Float64, IDL.Bool],
+      [],
+      [],
+    ),
+  'setNinetwentyLine' : IDL.Func([IDL.Float64], [], []),
+  'setNinetwentySignal' : IDL.Func(
+      [IDL.Text, IDL.Float64, IDL.Float64],
       [],
       [],
     ),
@@ -268,6 +285,12 @@ export const idlFactory = ({ IDL }) => {
     'symbol' : IDL.Text,
     'strategyId' : IDL.Nat,
   });
+  const NinetwentyState = IDL.Record({
+    'line' : IDL.Float64,
+    'entry' : IDL.Float64,
+    'stopLoss' : IDL.Float64,
+    'signal' : IDL.Text,
+  });
   const RiskSettings = IDL.Record({
     'autoShutdown' : IDL.Bool,
     'maxDailyLoss' : IDL.Float64,
@@ -285,6 +308,7 @@ export const idlFactory = ({ IDL }) => {
     'enabled' : IDL.Bool,
     'stopLossPercent' : IDL.Float64,
     'targetPercent' : IDL.Float64,
+    'strategyType' : IDL.Text,
   });
   
   return IDL.Service({
@@ -299,6 +323,7 @@ export const idlFactory = ({ IDL }) => {
           IDL.Nat,
           IDL.Float64,
           IDL.Text,
+          IDL.Text,
         ],
         [IDL.Nat],
         [],
@@ -309,6 +334,7 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+    'clearNinetwentyState' : IDL.Func([], [], []),
     'closeTrade' : IDL.Func([IDL.Nat], [], []),
     'exitAllTrades' : IDL.Func([], [], []),
     'forceAddDailyCandle' : IDL.Func(
@@ -363,6 +389,8 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getMyBacktestResults' : IDL.Func([], [IDL.Vec(BacktestResult)], ['query']),
     'getMyTrades' : IDL.Func([], [IDL.Vec(Trade)], ['query']),
+    'getNinetwentyLine' : IDL.Func([], [IDL.Float64], ['query']),
+    'getNinetwentyState' : IDL.Func([], [NinetwentyState], ['query']),
     'getRiskSettings' : IDL.Func([], [RiskSettings], ['query']),
     'getSquareOffMode' : IDL.Func([], [IDL.Bool], ['query']),
     'getStrategies' : IDL.Func([], [IDL.Vec(Strategy)], ['query']),
@@ -404,6 +432,12 @@ export const idlFactory = ({ IDL }) => {
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
     'saveRiskSettings' : IDL.Func(
         [IDL.Float64, IDL.Nat, IDL.Float64, IDL.Bool],
+        [],
+        [],
+      ),
+    'setNinetwentyLine' : IDL.Func([IDL.Float64], [], []),
+    'setNinetwentySignal' : IDL.Func(
+        [IDL.Text, IDL.Float64, IDL.Float64],
         [],
         [],
       ),

@@ -108,6 +108,12 @@ export interface RiskSettings {
     maxTradesPerDay: bigint;
     maxCapitalPerTrade: number;
 }
+export interface NinetwentyState {
+    line: number;
+    entry: number;
+    stopLoss: number;
+    signal: string;
+}
 export interface Candle {
     low: number;
     timeframe: string;
@@ -117,17 +123,6 @@ export interface Candle {
     volume: bigint;
     timestamp: bigint;
     symbol: string;
-}
-export interface BrokerConfig {
-    redirectUrl: string;
-    paperMode: boolean;
-    secret: string;
-    webhook: string;
-    algorithmEnabled: boolean;
-    apiKey: string;
-    accessToken: string;
-    liveMode: boolean;
-    tradingMode: string;
 }
 export interface Trade {
     id: bigint;
@@ -154,6 +149,18 @@ export interface Strategy {
     enabled: boolean;
     stopLossPercent: number;
     targetPercent: number;
+    strategyType: string;
+}
+export interface BrokerConfig {
+    redirectUrl: string;
+    paperMode: boolean;
+    secret: string;
+    webhook: string;
+    algorithmEnabled: boolean;
+    apiKey: string;
+    accessToken: string;
+    liveMode: boolean;
+    tradingMode: string;
 }
 export interface UserProfile {
     name: string;
@@ -166,9 +173,10 @@ export enum UserRole {
 }
 export interface backendInterface {
     _initializeAccessControlWithSecret(userSecret: string): Promise<void>;
-    addStrategy(name: string, shortWindow: bigint, longWindow: bigint, stopLossPercent: number, targetPercent: number, positionSize: bigint, riskPercent: number, algorithmFile: string): Promise<bigint>;
+    addStrategy(name: string, shortWindow: bigint, longWindow: bigint, stopLossPercent: number, targetPercent: number, positionSize: bigint, riskPercent: number, algorithmFile: string, strategyType: string): Promise<bigint>;
     addTrade(symbol: string, strategyName: string, side: string, quantity: bigint, price: number, mode: string): Promise<bigint>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
+    clearNinetwentyState(): Promise<void>;
     closeTrade(id: bigint): Promise<void>;
     exitAllTrades(): Promise<void>;
     forceAddDailyCandle(open: number, high: number, low: number, close: number, volume: bigint, symbol: string, timeframe: string, timestamp: bigint): Promise<void>;
@@ -194,6 +202,8 @@ export interface backendInterface {
     getCandles(symbol: string, timeframe: string, limit: bigint): Promise<Array<Candle>>;
     getMyBacktestResults(): Promise<Array<BacktestResult>>;
     getMyTrades(): Promise<Array<Trade>>;
+    getNinetwentyLine(): Promise<number>;
+    getNinetwentyState(): Promise<NinetwentyState>;
     getRiskSettings(): Promise<RiskSettings>;
     getSquareOffMode(): Promise<boolean>;
     getStrategies(): Promise<Array<Strategy>>;
@@ -204,6 +214,8 @@ export interface backendInterface {
     saveBrokerConfig(apiKey: string, secret: string, accessToken: string, redirectUrl: string, webhook: string, paperMode: boolean, liveMode: boolean, tradingMode: string): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     saveRiskSettings(maxDailyLoss: number, maxTradesPerDay: bigint, maxCapitalPerTrade: number, autoShutdown: boolean): Promise<void>;
+    setNinetwentyLine(line: number): Promise<void>;
+    setNinetwentySignal(signal: string, entry: number, stopLoss: number): Promise<void>;
     setTradingMode(mode: string): Promise<void>;
     toggleAlgorithm(): Promise<void>;
     toggleSquareOffMode(): Promise<void>;
@@ -227,17 +239,17 @@ export class Backend implements backendInterface {
             return result;
         }
     }
-    async addStrategy(arg0: string, arg1: bigint, arg2: bigint, arg3: number, arg4: number, arg5: bigint, arg6: number, arg7: string): Promise<bigint> {
+    async addStrategy(arg0: string, arg1: bigint, arg2: bigint, arg3: number, arg4: number, arg5: bigint, arg6: number, arg7: string, arg8: string): Promise<bigint> {
         if (this.processError) {
             try {
-                const result = await this.actor.addStrategy(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+                const result = await this.actor.addStrategy(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
                 return result;
             } catch (e) {
                 this.processError(e);
                 throw new Error("unreachable");
             }
         } else {
-            const result = await this.actor.addStrategy(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+            const result = await this.actor.addStrategy(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8);
             return result;
         }
     }
@@ -266,6 +278,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.assignCallerUserRole(arg0, to_candid_UserRole_n1(this._uploadFile, this._downloadFile, arg1));
+            return result;
+        }
+    }
+    async clearNinetwentyState(): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.clearNinetwentyState();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.clearNinetwentyState();
             return result;
         }
     }
@@ -450,6 +476,34 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async getNinetwentyLine(): Promise<number> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getNinetwentyLine();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getNinetwentyLine();
+            return result;
+        }
+    }
+    async getNinetwentyState(): Promise<NinetwentyState> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getNinetwentyState();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getNinetwentyState();
+            return result;
+        }
+    }
     async getRiskSettings(): Promise<RiskSettings> {
         if (this.processError) {
             try {
@@ -587,6 +641,34 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.saveRiskSettings(arg0, arg1, arg2, arg3);
+            return result;
+        }
+    }
+    async setNinetwentyLine(arg0: number): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.setNinetwentyLine(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.setNinetwentyLine(arg0);
+            return result;
+        }
+    }
+    async setNinetwentySignal(arg0: string, arg1: number, arg2: number): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.setNinetwentySignal(arg0, arg1, arg2);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.setNinetwentySignal(arg0, arg1, arg2);
             return result;
         }
     }

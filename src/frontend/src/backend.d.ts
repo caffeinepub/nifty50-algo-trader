@@ -26,6 +26,12 @@ export interface RiskSettings {
     maxTradesPerDay: bigint;
     maxCapitalPerTrade: number;
 }
+export interface NinetwentyState {
+    line: number;
+    entry: number;
+    stopLoss: number;
+    signal: string;
+}
 export interface Candle {
     low: number;
     timeframe: string;
@@ -35,17 +41,6 @@ export interface Candle {
     volume: bigint;
     timestamp: bigint;
     symbol: string;
-}
-export interface BrokerConfig {
-    redirectUrl: string;
-    paperMode: boolean;
-    secret: string;
-    webhook: string;
-    algorithmEnabled: boolean;
-    apiKey: string;
-    accessToken: string;
-    liveMode: boolean;
-    tradingMode: string;
 }
 export interface Trade {
     id: bigint;
@@ -72,6 +67,18 @@ export interface Strategy {
     enabled: boolean;
     stopLossPercent: number;
     targetPercent: number;
+    strategyType: string;
+}
+export interface BrokerConfig {
+    redirectUrl: string;
+    paperMode: boolean;
+    secret: string;
+    webhook: string;
+    algorithmEnabled: boolean;
+    apiKey: string;
+    accessToken: string;
+    liveMode: boolean;
+    tradingMode: string;
 }
 export interface UserProfile {
     name: string;
@@ -83,9 +90,10 @@ export enum UserRole {
     guest = "guest"
 }
 export interface backendInterface {
-    addStrategy(name: string, shortWindow: bigint, longWindow: bigint, stopLossPercent: number, targetPercent: number, positionSize: bigint, riskPercent: number, algorithmFile: string): Promise<bigint>;
+    addStrategy(name: string, shortWindow: bigint, longWindow: bigint, stopLossPercent: number, targetPercent: number, positionSize: bigint, riskPercent: number, algorithmFile: string, strategyType: string): Promise<bigint>;
     addTrade(symbol: string, strategyName: string, side: string, quantity: bigint, price: number, mode: string): Promise<bigint>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
+    clearNinetwentyState(): Promise<void>;
     closeTrade(id: bigint): Promise<void>;
     exitAllTrades(): Promise<void>;
     forceAddDailyCandle(open: number, high: number, low: number, close: number, volume: bigint, symbol: string, timeframe: string, timestamp: bigint): Promise<void>;
@@ -111,6 +119,8 @@ export interface backendInterface {
     getCandles(symbol: string, timeframe: string, limit: bigint): Promise<Array<Candle>>;
     getMyBacktestResults(): Promise<Array<BacktestResult>>;
     getMyTrades(): Promise<Array<Trade>>;
+    getNinetwentyLine(): Promise<number>;
+    getNinetwentyState(): Promise<NinetwentyState>;
     getRiskSettings(): Promise<RiskSettings>;
     getSquareOffMode(): Promise<boolean>;
     getStrategies(): Promise<Array<Strategy>>;
@@ -121,6 +131,8 @@ export interface backendInterface {
     saveBrokerConfig(apiKey: string, secret: string, accessToken: string, redirectUrl: string, webhook: string, paperMode: boolean, liveMode: boolean, tradingMode: string): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     saveRiskSettings(maxDailyLoss: number, maxTradesPerDay: bigint, maxCapitalPerTrade: number, autoShutdown: boolean): Promise<void>;
+    setNinetwentyLine(line: number): Promise<void>;
+    setNinetwentySignal(signal: string, entry: number, stopLoss: number): Promise<void>;
     setTradingMode(mode: string): Promise<void>;
     toggleAlgorithm(): Promise<void>;
     toggleSquareOffMode(): Promise<void>;

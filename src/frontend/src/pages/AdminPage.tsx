@@ -71,13 +71,17 @@ import {
   useAdminDashboardStats,
   useAllTrades,
   useBrokerConfig,
+  useClearNinetwentyState,
   useCloseTrade,
   useExitAllTrades,
   useModifyStopLoss,
+  useNinetwentyState,
   useRiskSettings,
   useSaveBacktestResult,
   useSaveBrokerConfig,
   useSaveRiskSettings,
+  useSetNinetwentyLine,
+  useSetNinetwentySignal,
   useStrategies,
   useToggleSquareOffMode,
   useToggleStrategy,
@@ -776,6 +780,7 @@ function StrategiesTab() {
         positionSize: BigInt(Number(form.positionSize)),
         riskPercent: Number.parseFloat(form.riskPercent),
         algorithmFile: form.algorithmFile.trim(),
+        strategyType: "ma_crossover",
       });
       setForm({
         name: "",
@@ -1341,6 +1346,9 @@ function BacktestTab() {
                       </SelectItem>
                     </>
                   )}
+                  <SelectItem value="nine_twenty_demo" className="text-sm">
+                    9:20 Candle Strategy
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -2161,6 +2169,847 @@ function RiskMgmtTab() {
   );
 }
 
+// ── 9:20 Strategy Tab ─────────────────────────────────────────────────────────
+
+interface NiftyCandle {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  index: number;
+}
+
+interface NinetwentyTradeLog {
+  date: string;
+  signal: "CALL" | "PUT";
+  entry: number;
+  sl: number;
+  exit: number;
+  pnl: number;
+}
+
+function generateNiftyCandles(
+  basePrice: number,
+  count: number,
+  startHour: number,
+  startMin: number,
+): NiftyCandle[] {
+  const candles: NiftyCandle[] = [];
+  let price = basePrice;
+  for (let i = 0; i < count; i++) {
+    const totalMin = startMin + i * 5;
+    const h = startHour + Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    const timeStr = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    const open = price;
+    const change = (Math.random() - 0.48) * 35;
+    const close = Math.round((open + change) * 100) / 100;
+    const wick = Math.random() * 18;
+    const high = Math.round((Math.max(open, close) + wick) * 100) / 100;
+    const low = Math.round((Math.min(open, close) - wick) * 100) / 100;
+    const volume = Math.floor(50000 + Math.random() * 150000);
+    candles.push({ time: timeStr, open, high, low, close, volume, index: i });
+    price = close;
+  }
+  return candles;
+}
+
+function computeSignal(candles: NiftyCandle[]): {
+  signal: "CALL" | "PUT" | "WAITING";
+  line: number;
+  entry: number;
+  stopLoss: number;
+} {
+  // candle index 4 = 9:20 (starting 9:00), index 5 = 9:25
+  const line = candles[4]?.close ?? 0;
+  const nextClose = candles[5]?.close ?? 0;
+  let signal: "CALL" | "PUT" | "WAITING" = "WAITING";
+  let entry = 0;
+  let stopLoss = 0;
+  if (nextClose > line) {
+    signal = "CALL";
+    entry = nextClose;
+    stopLoss = Math.round((line - 7) * 100) / 100;
+  } else if (nextClose < line) {
+    signal = "PUT";
+    entry = nextClose;
+    stopLoss = Math.round((line + 7) * 100) / 100;
+  }
+  return { signal, line, entry, stopLoss };
+}
+
+const MOCK_920_HISTORY: NinetwentyTradeLog[] = [
+  {
+    date: "06 Mar 2026",
+    signal: "CALL",
+    entry: 22415.5,
+    sl: 22354.2,
+    exit: 22489.0,
+    pnl: 3675.0,
+  },
+  {
+    date: "05 Mar 2026",
+    signal: "PUT",
+    entry: 22188.0,
+    sl: 22232.5,
+    exit: 22110.5,
+    pnl: 3875.0,
+  },
+  {
+    date: "04 Mar 2026",
+    signal: "CALL",
+    entry: 22350.0,
+    sl: 22289.0,
+    exit: 22296.5,
+    pnl: -2675.0,
+  },
+  {
+    date: "03 Mar 2026",
+    signal: "CALL",
+    entry: 22560.0,
+    sl: 22499.0,
+    exit: 22680.5,
+    pnl: 6025.0,
+  },
+  {
+    date: "28 Feb 2026",
+    signal: "PUT",
+    entry: 22102.5,
+    sl: 22145.0,
+    exit: 21998.0,
+    pnl: 5225.0,
+  },
+  {
+    date: "27 Feb 2026",
+    signal: "CALL",
+    entry: 22745.0,
+    sl: 22684.0,
+    exit: 22812.5,
+    pnl: 3375.0,
+  },
+];
+
+function CandlestickChart({
+  candles,
+  line,
+  signal,
+  stopLoss,
+}: {
+  candles: NiftyCandle[];
+  line: number;
+  signal: "CALL" | "PUT" | "WAITING";
+  entry: number;
+  stopLoss: number;
+}) {
+  const width = 720;
+  const height = 380;
+  const paddingLeft = 12;
+  const paddingRight = 64;
+  const paddingTop = 20;
+  const paddingBottom = 36;
+  const chartW = width - paddingLeft - paddingRight;
+  const chartH = height - paddingTop - paddingBottom;
+
+  if (!candles.length) return null;
+
+  const allPrices = candles.flatMap((c) => [c.high, c.low]);
+  const minP = Math.min(...allPrices) - 20;
+  const maxP = Math.max(...allPrices) + 20;
+  const priceRange = maxP - minP;
+
+  const toY = (price: number) =>
+    paddingTop + ((maxP - price) / priceRange) * chartH;
+
+  const candleW = Math.floor(chartW / candles.length);
+  const bodyPad = Math.floor(candleW * 0.18);
+  const bodyW = candleW - bodyPad * 2;
+
+  const toX = (i: number) => paddingLeft + i * candleW + candleW / 2;
+
+  // Price axis ticks
+  const tickCount = 6;
+  const ticks: number[] = [];
+  for (let i = 0; i <= tickCount; i++) {
+    ticks.push(minP + (priceRange * i) / tickCount);
+  }
+
+  const lineY = toY(line);
+  const slY = stopLoss > 0 ? toY(stopLoss) : null;
+
+  return (
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      width="100%"
+      preserveAspectRatio="xMidYMid meet"
+      className="rounded-lg"
+      role="img"
+      aria-label="NIFTY50 5-minute candlestick chart showing 9:20 strategy"
+      data-ocid="admin.920.canvas_target"
+    >
+      <title>NIFTY50 5-Minute Candlestick Chart — 9:20 Strategy</title>
+      {/* Background */}
+      <rect width={width} height={height} fill="var(--color-card)" rx="8" />
+      {/* Grid lines */}
+      {ticks.map((t) => {
+        const y = toY(t);
+        return (
+          <line
+            key={`grid-${t.toFixed(0)}`}
+            x1={paddingLeft}
+            y1={y}
+            x2={width - paddingRight}
+            y2={y}
+            stroke="var(--color-border)"
+            strokeWidth="0.5"
+            strokeOpacity="0.5"
+          />
+        );
+      })}
+      {/* Candle bodies + wicks */}
+      {candles.map((c) => {
+        const cx = toX(c.index);
+        const x = paddingLeft + c.index * candleW + bodyPad;
+        const isBull = c.close >= c.open;
+        const fillColor = isBull ? "#22c55e" : "#ef4444";
+        const bodyTop = toY(Math.max(c.open, c.close));
+        const bodyBot = toY(Math.min(c.open, c.close));
+        const bodyHeight = Math.max(bodyBot - bodyTop, 1);
+        const is920 = c.index === 4;
+        const is925 = c.index === 5;
+        return (
+          <g key={c.index}>
+            {/* Highlight 9:20 candle */}
+            {is920 && (
+              <rect
+                x={paddingLeft + c.index * candleW}
+                y={paddingTop}
+                width={candleW}
+                height={chartH}
+                fill="#eab30820"
+                rx="2"
+              />
+            )}
+            {is925 && signal !== "WAITING" && (
+              <rect
+                x={paddingLeft + c.index * candleW}
+                y={paddingTop}
+                width={candleW}
+                height={chartH}
+                fill={signal === "CALL" ? "#22c55e15" : "#ef444415"}
+                rx="2"
+              />
+            )}
+            {/* Wick */}
+            <line
+              x1={cx}
+              y1={toY(c.high)}
+              x2={cx}
+              y2={toY(c.low)}
+              stroke={fillColor}
+              strokeWidth="1.5"
+            />
+            {/* Body */}
+            <rect
+              x={x}
+              y={bodyTop}
+              width={bodyW}
+              height={bodyHeight}
+              fill={fillColor}
+              rx="1"
+            />
+          </g>
+        );
+      })}
+
+      {/* 9:20 horizontal reference line */}
+      {line > 0 && (
+        <g>
+          <line
+            x1={paddingLeft}
+            y1={lineY}
+            x2={width - paddingRight}
+            y2={lineY}
+            stroke="#eab308"
+            strokeWidth="1.5"
+            strokeDasharray="none"
+          />
+          <rect
+            x={width - paddingRight + 2}
+            y={lineY - 8}
+            width={60}
+            height={16}
+            fill="#eab30820"
+            rx="3"
+          />
+          <text
+            x={width - paddingRight + 5}
+            y={lineY + 4}
+            fill="#eab308"
+            fontSize="9"
+            fontFamily="monospace"
+          >
+            {line.toFixed(0)}
+          </text>
+          {/* Label on chart */}
+          <text
+            x={paddingLeft + 4}
+            y={lineY - 4}
+            fill="#eab308"
+            fontSize="8"
+            fontFamily="monospace"
+            opacity="0.8"
+          >
+            9:20 Close
+          </text>
+        </g>
+      )}
+
+      {/* Fixed SL line (dashed red for CALL, dashed red for PUT) */}
+      {slY !== null && signal !== "WAITING" && (
+        <g>
+          <line
+            x1={paddingLeft}
+            y1={slY}
+            x2={width - paddingRight}
+            y2={slY}
+            stroke="#ef4444"
+            strokeWidth="1"
+            strokeDasharray="4 3"
+          />
+          <text
+            x={paddingLeft + 4}
+            y={slY - 4}
+            fill="#ef4444"
+            fontSize="8"
+            fontFamily="monospace"
+            opacity="0.8"
+          >
+            Fixed SL ({stopLoss.toFixed(0)})
+          </text>
+        </g>
+      )}
+
+      {/* Entry arrow on 9:25 candle */}
+      {signal !== "WAITING" && candles[5] && (
+        <g>
+          {signal === "CALL" ? (
+            // Up arrow below candle
+            <>
+              <polygon
+                points={`${toX(5)},${toY(candles[5].low) + 16} ${toX(5) - 6},${toY(candles[5].low) + 28} ${toX(5) + 6},${toY(candles[5].low) + 28}`}
+                fill="#22c55e"
+              />
+              <text
+                x={toX(5)}
+                y={toY(candles[5].low) + 38}
+                fill="#22c55e"
+                fontSize="8"
+                textAnchor="middle"
+                fontFamily="monospace"
+                fontWeight="bold"
+              >
+                CALL
+              </text>
+            </>
+          ) : (
+            // Down arrow above candle
+            <>
+              <polygon
+                points={`${toX(5)},${toY(candles[5].high) - 16} ${toX(5) - 6},${toY(candles[5].high) - 28} ${toX(5) + 6},${toY(candles[5].high) - 28}`}
+                fill="#ef4444"
+              />
+              <text
+                x={toX(5)}
+                y={toY(candles[5].high) - 32}
+                fill="#ef4444"
+                fontSize="8"
+                textAnchor="middle"
+                fontFamily="monospace"
+                fontWeight="bold"
+              >
+                PUT
+              </text>
+            </>
+          )}
+        </g>
+      )}
+
+      {/* Price axis (right) */}
+      {ticks.map((t) => {
+        const y = toY(t);
+        return (
+          <text
+            key={`axis-${t.toFixed(0)}`}
+            x={width - paddingRight + 4}
+            y={y + 4}
+            fill="var(--color-muted-foreground)"
+            fontSize="9"
+            fontFamily="monospace"
+          >
+            {t.toFixed(0)}
+          </text>
+        );
+      })}
+
+      {/* Time axis (bottom) — show every 4th candle */}
+      {candles
+        .filter((c) => c.index % 4 === 0 || c.index === 4 || c.index === 5)
+        .map((c) => (
+          <text
+            key={c.index}
+            x={toX(c.index)}
+            y={height - paddingBottom + 14}
+            fill={
+              c.index === 4 || c.index === 5
+                ? "#eab308"
+                : "var(--color-muted-foreground)"
+            }
+            fontSize="8"
+            textAnchor="middle"
+            fontFamily="monospace"
+            fontWeight={c.index === 4 ? "bold" : "normal"}
+          >
+            {c.time}
+          </text>
+        ))}
+
+      {/* Bottom border */}
+      <line
+        x1={paddingLeft}
+        y1={height - paddingBottom}
+        x2={width - paddingRight}
+        y2={height - paddingBottom}
+        stroke="var(--color-border)"
+        strokeWidth="0.5"
+      />
+    </svg>
+  );
+}
+
+function NinetwentyTab() {
+  const { data: savedState } = useNinetwentyState();
+  const { mutate: setLine, isPending: isSettingLine } = useSetNinetwentyLine();
+  const { mutate: setSignal, isPending: isSettingSignal } =
+    useSetNinetwentySignal();
+  const { mutate: clearState, isPending: isClearing } =
+    useClearNinetwentyState();
+
+  const [candles, setCandles] = useState<NiftyCandle[]>(() =>
+    generateNiftyCandles(22500 + Math.random() * 500 - 250, 25, 9, 0),
+  );
+  const [computed, setComputed] = useState(() => computeSignal(candles));
+  const [currentPrice, setCurrentPrice] = useState(
+    () => candles[candles.length - 1]?.close ?? 0,
+  );
+
+  const isSaving = isSettingLine || isSettingSignal;
+
+  const handleSimulate = () => {
+    const base = 22000 + Math.random() * 1000;
+    const newCandles = generateNiftyCandles(base, 25, 9, 0);
+    setCandles(newCandles);
+    setComputed(computeSignal(newCandles));
+    setCurrentPrice(newCandles[newCandles.length - 1]?.close ?? 0);
+    toast.success("New simulation generated");
+  };
+
+  const handleSaveToBackend = () => {
+    if (computed.line <= 0) {
+      toast.error("No valid 9:20 line to save");
+      return;
+    }
+    setLine(computed.line, {
+      onSuccess: () => {
+        setSignal(
+          {
+            signal: computed.signal,
+            entry: computed.entry,
+            stopLoss: computed.stopLoss,
+          },
+          {
+            onSuccess: () => toast.success("9:20 strategy state saved"),
+            onError: () => toast.error("Failed to save signal"),
+          },
+        );
+      },
+      onError: () => toast.error("Failed to save 9:20 line"),
+    });
+  };
+
+  const handleReset = () => {
+    clearState(undefined, {
+      onSuccess: () => {
+        toast.success("9:20 strategy state cleared");
+      },
+      onError: () => toast.error("Failed to clear state"),
+    });
+  };
+
+  const livePnl =
+    computed.signal === "CALL" && computed.entry > 0
+      ? Math.round((currentPrice - computed.entry) * 50 * 100) / 100
+      : computed.signal === "PUT" && computed.entry > 0
+        ? Math.round((computed.entry - currentPrice) * 50 * 100) / 100
+        : 0;
+
+  const signalColor =
+    computed.signal === "CALL"
+      ? "text-profit border-profit/40 bg-profit/10"
+      : computed.signal === "PUT"
+        ? "text-loss border-loss/40 bg-loss/10"
+        : "text-warning border-warning/40 bg-warning/10";
+
+  const signalText =
+    computed.signal === "CALL"
+      ? "CALL ↑"
+      : computed.signal === "PUT"
+        ? "PUT ↓"
+        : "WAITING";
+
+  return (
+    <motion.div
+      key="ninetwenty"
+      variants={tabVariants}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
+      className="space-y-5"
+    >
+      {/* Signal Status Bar */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        {/* Large signal badge */}
+        <Card
+          className="md:col-span-1 bg-card/80 border-border"
+          data-ocid="admin.920.signal_card"
+        >
+          <CardContent className="p-4 flex flex-col items-center justify-center gap-2 h-full min-h-[88px]">
+            <span className="text-[9px] text-muted-foreground uppercase tracking-widest font-mono">
+              Signal
+            </span>
+            <Badge
+              variant="outline"
+              className={`text-lg font-bold px-4 py-2 font-mono-data border-2 ${signalColor}`}
+            >
+              {signalText}
+            </Badge>
+          </CardContent>
+        </Card>
+
+        {/* Reference Line */}
+        <Card
+          className="bg-card/80 border-border"
+          data-ocid="admin.920.entry_card"
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[9px] text-muted-foreground uppercase tracking-widest font-mono">
+                9:20 Line
+              </span>
+              <span className="w-2 h-2 rounded-full bg-warning" />
+            </div>
+            <div className="font-mono-data text-lg font-bold text-warning">
+              {computed.line > 0 ? computed.line.toFixed(2) : "—"}
+            </div>
+            <div className="text-[9px] text-muted-foreground mt-0.5">
+              Reference price
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Entry Price */}
+        <Card className="bg-card/80 border-border">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[9px] text-muted-foreground uppercase tracking-widest font-mono">
+                Entry
+              </span>
+              <TrendingUp className="w-3 h-3 text-primary" />
+            </div>
+            <div className="font-mono-data text-lg font-bold text-foreground">
+              {computed.entry > 0 ? computed.entry.toFixed(2) : "—"}
+            </div>
+            <div className="text-[9px] text-muted-foreground mt-0.5">
+              9:25 candle close
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Stop Loss */}
+        <Card
+          className="bg-card/80 border-border"
+          data-ocid="admin.920.sl_card"
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[9px] text-muted-foreground uppercase tracking-widest font-mono">
+                Stop Loss
+              </span>
+              <TrendingDown className="w-3 h-3 text-loss" />
+            </div>
+            <div className="font-mono-data text-lg font-bold text-loss">
+              {computed.stopLoss > 0 ? computed.stopLoss.toFixed(2) : "—"}
+            </div>
+            <div className="text-[9px] text-muted-foreground mt-0.5">
+              Line ± 7 pts
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Live P&L */}
+        <Card className="bg-card/80 border-border">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[9px] text-muted-foreground uppercase tracking-widest font-mono">
+                Sim P&L
+              </span>
+              <Activity className="w-3 h-3 text-muted-foreground" />
+            </div>
+            <div
+              className={`font-mono-data text-lg font-bold ${livePnl >= 0 ? "text-profit" : "text-loss"}`}
+            >
+              {computed.entry > 0
+                ? `${livePnl >= 0 ? "+" : ""}₹${formatINR(livePnl)}`
+                : "—"}
+            </div>
+            <div className="text-[9px] text-muted-foreground mt-0.5">
+              50 qty × Δprice
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Backend Saved State */}
+      {savedState && savedState.line > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-3 p-3 bg-primary/5 border border-primary/20 rounded-lg"
+        >
+          <ShieldCheck className="w-4 h-4 text-primary flex-shrink-0" />
+          <div className="flex-1 text-xs text-muted-foreground">
+            <span className="font-semibold text-foreground">
+              Saved to backend:{" "}
+            </span>
+            Line:{" "}
+            <span className="font-mono-data text-warning">
+              {savedState.line}
+            </span>{" "}
+            | Signal:{" "}
+            <span
+              className={
+                savedState.signal === "CALL"
+                  ? "text-profit font-bold"
+                  : "text-loss font-bold"
+              }
+            >
+              {savedState.signal || "WAITING"}
+            </span>{" "}
+            | Entry:{" "}
+            <span className="font-mono-data">{savedState.entry || "—"}</span>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Chart Card */}
+      <Card className="bg-card/80 border-border">
+        <CardHeader className="pb-3">
+          <div className="flex items-start justify-between flex-wrap gap-3">
+            <div>
+              <CardTitle className="text-base font-display flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-warning" />
+                NIFTY50 5-Min Chart — 9:20 Strategy
+              </CardTitle>
+              <CardDescription className="text-xs mt-0.5">
+                9:00 AM – 11:00 AM · 5-minute candles · Golden line = 9:20 close
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-3 text-xs">
+              <div className="flex items-center gap-1.5">
+                <span className="w-5 h-0.5 bg-yellow-400 inline-block" />
+                <span className="text-muted-foreground">9:20 Line</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="w-5 h-px border-t border-dashed border-red-500 inline-block"
+                  style={{ borderTopWidth: "1.5px" }}
+                />
+                <span className="text-muted-foreground">Fixed SL</span>
+              </div>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-3 pt-0">
+          <div className="overflow-x-auto">
+            <CandlestickChart
+              candles={candles}
+              line={computed.line}
+              signal={computed.signal}
+              entry={computed.entry}
+              stopLoss={computed.stopLoss}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Controls */}
+      <div className="flex flex-wrap gap-3">
+        <Button
+          onClick={handleSimulate}
+          className="gap-2 bg-warning/90 hover:bg-warning text-warning-foreground"
+          data-ocid="admin.920.primary_button"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Simulate Day
+        </Button>
+        <Button
+          onClick={handleSaveToBackend}
+          disabled={isSaving || computed.signal === "WAITING"}
+          variant="outline"
+          className="gap-2"
+          data-ocid="admin.920.secondary_button"
+        >
+          {isSaving ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <ShieldCheck className="w-4 h-4" />
+          )}
+          Save to Backend
+        </Button>
+        <Button
+          onClick={handleReset}
+          disabled={isClearing}
+          variant="destructive"
+          className="gap-2"
+          data-ocid="admin.920.delete_button"
+        >
+          {isClearing ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <X className="w-4 h-4" />
+          )}
+          Reset
+        </Button>
+      </div>
+
+      {/* Strategy Logic Info */}
+      <Card className="bg-card/80 border-border">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-display flex items-center gap-2">
+            <Eye className="w-4 h-4 text-muted-foreground" />
+            Strategy Rules
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+            <div className="p-3 bg-background/60 border border-border rounded-lg">
+              <p className="font-semibold text-warning mb-1">
+                📍 Reference Line
+              </p>
+              <p className="text-muted-foreground leading-relaxed">
+                9:20 AM candle's CLOSE price becomes the horizontal reference
+                line for the day.
+              </p>
+            </div>
+            <div className="p-3 bg-background/60 border border-profit/20 rounded-lg">
+              <p className="font-semibold text-profit mb-1">📈 CALL Signal</p>
+              <p className="text-muted-foreground leading-relaxed">
+                If 9:25 candle closes ABOVE the line → Buy CALL. Exit if any
+                candle closes below the line.
+              </p>
+            </div>
+            <div className="p-3 bg-background/60 border border-loss/20 rounded-lg">
+              <p className="font-semibold text-loss mb-1">📉 PUT Signal</p>
+              <p className="text-muted-foreground leading-relaxed">
+                If 9:25 candle closes BELOW the line → Buy PUT. Fixed SL = line
+                ± 7 points.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Trade History */}
+      <Card className="bg-card/80 border-border">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-display flex items-center gap-2">
+            <BarChart3 className="w-4 h-4 text-primary" />
+            9:20 Strategy Trade History
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Historical performance log — 6 recent trades
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          <ScrollArea className="w-full">
+            <Table data-ocid="admin.920.table">
+              <TableHeader>
+                <TableRow className="border-border hover:bg-transparent">
+                  {["Date", "Signal", "Entry", "Stop Loss", "Exit", "P&L"].map(
+                    (h) => (
+                      <TableHead
+                        key={h}
+                        className="text-[10px] text-muted-foreground font-mono uppercase tracking-wider whitespace-nowrap"
+                      >
+                        {h}
+                      </TableHead>
+                    ),
+                  )}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {MOCK_920_HISTORY.map((t, i) => (
+                  <TableRow
+                    key={`${t.date}-${i}`}
+                    className="border-border hover:bg-accent/20 transition-colors"
+                    data-ocid={`admin.920.row.${i + 1}`}
+                  >
+                    <TableCell className="font-mono text-xs whitespace-nowrap">
+                      {t.date}
+                    </TableCell>
+                    <TableCell>
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] font-bold ${
+                          t.signal === "CALL"
+                            ? "text-profit border-profit/40 bg-profit/10"
+                            : "text-loss border-loss/40 bg-loss/10"
+                        }`}
+                      >
+                        {t.signal === "CALL" ? (
+                          <TrendingUp className="w-3 h-3 mr-0.5" />
+                        ) : (
+                          <TrendingDown className="w-3 h-3 mr-0.5" />
+                        )}
+                        {t.signal}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="font-mono-data text-xs">
+                      ₹{t.entry.toLocaleString("en-IN")}
+                    </TableCell>
+                    <TableCell className="font-mono-data text-xs text-loss">
+                      ₹{t.sl.toLocaleString("en-IN")}
+                    </TableCell>
+                    <TableCell className="font-mono-data text-xs">
+                      ₹{t.exit.toLocaleString("en-IN")}
+                    </TableCell>
+                    <TableCell
+                      className={`font-mono-data text-xs font-semibold ${t.pnl >= 0 ? "text-profit" : "text-loss"}`}
+                    >
+                      {t.pnl >= 0 ? "+" : ""}₹{formatINR(t.pnl)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </ScrollArea>
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+}
+
 // ── Password Gate ─────────────────────────────────────────────────────────────
 
 const ADMIN_PASSWORD = "Santhosh1@";
@@ -2264,13 +3113,29 @@ export function AdminPage() {
   }
 
   const tabs = [
-    { value: "overview", label: "Overview", Icon: Activity },
-    { value: "monitor", label: "Trade Monitor", Icon: BarChart3 },
-    { value: "strategies", label: "Strategies", Icon: BarChart3 },
-    { value: "backtest", label: "Backtest", Icon: FlaskConical },
-    { value: "paperlive", label: "Paper/Live", Icon: Layers },
-    { value: "broker", label: "Broker API", Icon: LinkIcon },
-    { value: "risk", label: "Risk Mgmt", Icon: ShieldAlert },
+    { value: "overview", label: "Overview", Icon: Activity, isNew: false },
+    {
+      value: "monitor",
+      label: "Trade Monitor",
+      Icon: BarChart3,
+      isNew: false,
+    },
+    {
+      value: "strategies",
+      label: "Strategies",
+      Icon: BarChart3,
+      isNew: false,
+    },
+    {
+      value: "ninetwenty",
+      label: "9:20 Strategy",
+      Icon: TrendingUp,
+      isNew: true,
+    },
+    { value: "backtest", label: "Backtest", Icon: FlaskConical, isNew: false },
+    { value: "paperlive", label: "Paper/Live", Icon: Layers, isNew: false },
+    { value: "broker", label: "Broker API", Icon: LinkIcon, isNew: false },
+    { value: "risk", label: "Risk Mgmt", Icon: ShieldAlert, isNew: false },
   ];
 
   return (
@@ -2307,15 +3172,20 @@ export function AdminPage() {
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <ScrollArea className="w-full">
               <TabsList className="mb-4 bg-card/60 inline-flex w-auto gap-0.5">
-                {tabs.map(({ value, label, Icon }) => (
+                {tabs.map(({ value, label, Icon, isNew }) => (
                   <TabsTrigger
                     key={value}
                     value={value}
                     data-ocid="admin.tab"
-                    className="gap-1.5 text-xs whitespace-nowrap px-3"
+                    className="gap-1.5 text-xs whitespace-nowrap px-3 relative"
                   >
                     <Icon className="w-3.5 h-3.5" />
                     {label}
+                    {isNew && (
+                      <span className="ml-1 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wider rounded bg-warning/90 text-warning-foreground leading-none">
+                        NEW
+                      </span>
+                    )}
                   </TabsTrigger>
                 ))}
               </TabsList>
@@ -2335,6 +3205,11 @@ export function AdminPage() {
               {activeTab === "strategies" && (
                 <TabsContent value="strategies" forceMount>
                   <StrategiesTab />
+                </TabsContent>
+              )}
+              {activeTab === "ninetwenty" && (
+                <TabsContent value="ninetwenty" forceMount>
+                  <NinetwentyTab />
                 </TabsContent>
               )}
               {activeTab === "backtest" && (

@@ -44,6 +44,12 @@ export interface Candle {
   'timestamp' : bigint,
   'symbol' : string,
 }
+export interface NinetwentyState {
+  'line' : number,
+  'entry' : number,
+  'stopLoss' : number,
+  'signal' : string,
+}
 export interface RiskSettings {
   'autoShutdown' : boolean,
   'maxDailyLoss' : number,
@@ -61,6 +67,7 @@ export interface Strategy {
   'enabled' : boolean,
   'stopLossPercent' : number,
   'targetPercent' : number,
+  'strategyType' : string,
 }
 export interface Trade {
   'id' : bigint,
@@ -83,7 +90,7 @@ export type UserRole = { 'admin' : null } |
 export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
   'addStrategy' : ActorMethod<
-    [string, bigint, bigint, number, number, bigint, number, string],
+    [string, bigint, bigint, number, number, bigint, number, string, string],
     bigint
   >,
   'addTrade' : ActorMethod<
@@ -91,6 +98,7 @@ export interface _SERVICE {
     bigint
   >,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
+  'clearNinetwentyState' : ActorMethod<[], undefined>,
   'closeTrade' : ActorMethod<[bigint], undefined>,
   'exitAllTrades' : ActorMethod<[], undefined>,
   'forceAddDailyCandle' : ActorMethod<
@@ -125,6 +133,8 @@ export interface _SERVICE {
   'getCandles' : ActorMethod<[string, string, bigint], Array<Candle>>,
   'getMyBacktestResults' : ActorMethod<[], Array<BacktestResult>>,
   'getMyTrades' : ActorMethod<[], Array<Trade>>,
+  'getNinetwentyLine' : ActorMethod<[], number>,
+  'getNinetwentyState' : ActorMethod<[], NinetwentyState>,
   'getRiskSettings' : ActorMethod<[], RiskSettings>,
   'getSquareOffMode' : ActorMethod<[], boolean>,
   'getStrategies' : ActorMethod<[], Array<Strategy>>,
@@ -144,6 +154,8 @@ export interface _SERVICE {
     [number, bigint, number, boolean],
     undefined
   >,
+  'setNinetwentyLine' : ActorMethod<[number], undefined>,
+  'setNinetwentySignal' : ActorMethod<[string, number, number], undefined>,
   'setTradingMode' : ActorMethod<[string], undefined>,
   'toggleAlgorithm' : ActorMethod<[], undefined>,
   'toggleSquareOffMode' : ActorMethod<[], undefined>,

@@ -8,11 +8,12 @@ import Int "mo:core/Int";
 import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
 import Time "mo:core/Time";
-import Migration "migration";
+
 import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
+import Migration "migration";
 
-// Migrate previous state on upgrade
+// Data migration on upgrade
 (with migration = Migration.run)
 actor {
   // Type definitions
@@ -38,6 +39,7 @@ actor {
     riskPercent : Float;
     algorithmFile : Text;
     enabled : Bool;
+    strategyType : Text; // "ma_crossover" or "nine_twenty" etc.
   };
 
   type Trade = {
@@ -93,6 +95,13 @@ actor {
     email : Text;
   };
 
+  type NinetwentyState = {
+    line : Float;
+    signal : Text;
+    entry : Float;
+    stopLoss : Float;
+  };
+
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
 
@@ -113,6 +122,68 @@ actor {
   let userConfigs = Map.empty<Principal, BrokerConfig>();
   let userProfiles = Map.empty<Principal, UserProfile>();
   let riskSettings = Map.empty<Principal, RiskSettings>();
+  let ninetwentyStates = Map.empty<Principal, NinetwentyState>();
+
+  // 9:20 Candle Strategy state management
+  public shared ({ caller }) func setNinetwentyLine(line : Float) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can set ninetwenty line");
+    };
+
+    let state = switch (ninetwentyStates.get(caller)) {
+      case (null) { { line; signal = "NONE"; entry = 0.0; stopLoss = 0.0 } };
+      case (?existing) { { existing with line } };
+    };
+    ninetwentyStates.add(caller, state);
+  };
+
+  public query ({ caller }) func getNinetwentyLine() : async Float {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can get ninetwenty line");
+    };
+
+    switch (ninetwentyStates.get(caller)) {
+      case (null) { 0.0 };
+      case (?state) { state.line };
+    };
+  };
+
+  public shared ({ caller }) func setNinetwentySignal(signal : Text, entry : Float, stopLoss : Float) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can set ninetwenty signal");
+    };
+
+    let existingState = switch (ninetwentyStates.get(caller)) {
+      case (null) { { line = 0.0; signal; entry; stopLoss } };
+      case (?existing) { { existing with signal; entry; stopLoss } };
+    };
+    ninetwentyStates.add(caller, existingState);
+  };
+
+  public query ({ caller }) func getNinetwentyState() : async NinetwentyState {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can get ninetwenty state");
+    };
+
+    switch (ninetwentyStates.get(caller)) {
+      case (null) { { line = 0.0; signal = "NONE"; entry = 0.0; stopLoss = 0.0 } };
+      case (?state) { state };
+    };
+  };
+
+  public shared ({ caller }) func clearNinetwentyState() : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can clear ninetwenty state");
+    };
+
+    let existingState = switch (ninetwentyStates.get(caller)) {
+      case (null) { { line = 0.0; signal = "NONE"; entry = 0.0; stopLoss = 0.0 } };
+      case (?existing) {
+        { existing with signal = "NONE"; entry = 0.0; stopLoss = 0.0 };
+      };
+    };
+    ninetwentyStates.add(caller, existingState);
+  };
 
   // Risk & square off features
   public shared ({ caller }) func toggleSquareOffMode() : async () {
@@ -312,6 +383,7 @@ actor {
     positionSize : Nat,
     riskPercent : Float,
     algorithmFile : Text,
+    strategyType : Text,
   ) : async Nat {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only admins can perform this action");
@@ -328,6 +400,7 @@ actor {
       riskPercent;
       algorithmFile;
       enabled = true;
+      strategyType;
     };
 
     strategies.add(strategyId, strategy);

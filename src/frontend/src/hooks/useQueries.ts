@@ -43,6 +43,7 @@ export function useAddStrategy() {
       positionSize: bigint;
       riskPercent: number;
       algorithmFile: string;
+      strategyType?: string;
     }) => {
       if (!actor) throw new Error("Not authenticated");
       return actor.addStrategy(
@@ -54,6 +55,7 @@ export function useAddStrategy() {
         params.positionSize,
         params.riskPercent,
         params.algorithmFile,
+        params.strategyType ?? "ma_crossover",
       );
     },
     onSuccess: () => {
@@ -428,5 +430,69 @@ export function useAdminStats() {
       return actor.getAdminStats();
     },
     enabled: !!actor && !isFetching,
+  });
+}
+
+// ── 9:20 Strategy ─────────────────────────────────────────────────────────────
+
+export function useNinetwentyState() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["ninetwentyState"],
+    queryFn: async () => {
+      if (!actor) return null;
+      return actor.getNinetwentyState();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useSetNinetwentyLine() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (line: number) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.setNinetwentyLine(line);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["ninetwentyState"] });
+    },
+  });
+}
+
+export function useSetNinetwentySignal() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: {
+      signal: string;
+      entry: number;
+      stopLoss: number;
+    }) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.setNinetwentySignal(
+        params.signal,
+        params.entry,
+        params.stopLoss,
+      );
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["ninetwentyState"] });
+    },
+  });
+}
+
+export function useClearNinetwentyState() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.clearNinetwentyState();
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["ninetwentyState"] });
+    },
   });
 }

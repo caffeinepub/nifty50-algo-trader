@@ -10,6 +10,14 @@ import type { ActorMethod } from '@icp-sdk/core/agent';
 import type { IDL } from '@icp-sdk/core/candid';
 import type { Principal } from '@icp-sdk/core/principal';
 
+export interface ApiKey {
+  'id' : bigint,
+  'active' : boolean,
+  'userId' : string,
+  'name' : string,
+  'createdAt' : bigint,
+  'keyHash' : string,
+}
 export interface BacktestResult {
   'id' : bigint,
   'totalTrades' : bigint,
@@ -83,7 +91,17 @@ export interface Trade {
   'strategyName' : string,
   'symbol' : string,
 }
-export interface UserProfile { 'name' : string, 'email' : string }
+export interface UserProfile {
+  'experienceLevel' : string,
+  'country' : string,
+  'followersCount' : bigint,
+  'name' : string,
+  'joinedAt' : bigint,
+  'role' : string,
+  'pendingApproval' : boolean,
+  'email' : string,
+  'tradingMarket' : string,
+}
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
@@ -97,14 +115,17 @@ export interface _SERVICE {
     [string, string, string, bigint, number, string],
     bigint
   >,
+  'approveCreator' : ActorMethod<[Principal], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'clearNinetwentyState' : ActorMethod<[], undefined>,
   'closeTrade' : ActorMethod<[bigint], undefined>,
   'exitAllTrades' : ActorMethod<[], undefined>,
+  'followUser' : ActorMethod<[Principal], undefined>,
   'forceAddDailyCandle' : ActorMethod<
     [number, number, number, number, bigint, string, string, bigint],
     undefined
   >,
+  'generateApiKey' : ActorMethod<[string], ApiKey>,
   'getAdminDashboardStats' : ActorMethod<
     [],
     {
@@ -127,20 +148,25 @@ export interface _SERVICE {
     }
   >,
   'getAllTrades' : ActorMethod<[], Array<Trade>>,
+  'getAllUsers' : ActorMethod<[], Array<[Principal, UserProfile]>>,
   'getBrokerConfig' : ActorMethod<[], BrokerConfig>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getCandles' : ActorMethod<[string, string, bigint], Array<Candle>>,
+  'getMyApiKeys' : ActorMethod<[], Array<ApiKey>>,
   'getMyBacktestResults' : ActorMethod<[], Array<BacktestResult>>,
   'getMyTrades' : ActorMethod<[], Array<Trade>>,
   'getNinetwentyLine' : ActorMethod<[], number>,
   'getNinetwentyState' : ActorMethod<[], NinetwentyState>,
+  'getPendingCreators' : ActorMethod<[], Array<[Principal, UserProfile]>>,
   'getRiskSettings' : ActorMethod<[], RiskSettings>,
   'getSquareOffMode' : ActorMethod<[], boolean>,
   'getStrategies' : ActorMethod<[], Array<Strategy>>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'modifyStopLoss' : ActorMethod<[bigint, number], undefined>,
+  'rejectCreator' : ActorMethod<[Principal], undefined>,
+  'revokeApiKey' : ActorMethod<[bigint], undefined>,
   'saveBacktestResult' : ActorMethod<
     [bigint, string, string, number, number, number, number, bigint],
     bigint

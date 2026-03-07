@@ -36,6 +36,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { Principal } from "@icp-sdk/core/principal";
 import {
   Activity,
   AlertTriangle,
@@ -70,12 +71,16 @@ import {
   useAddStrategy,
   useAdminDashboardStats,
   useAllTrades,
+  useAllUsers,
+  useApproveCreator,
   useBrokerConfig,
   useClearNinetwentyState,
   useCloseTrade,
   useExitAllTrades,
   useModifyStopLoss,
   useNinetwentyState,
+  usePendingCreators,
+  useRejectCreator,
   useRiskSettings,
   useSaveBacktestResult,
   useSaveBrokerConfig,
@@ -3010,6 +3015,329 @@ function NinetwentyTab() {
   );
 }
 
+// ── User Approvals Tab ────────────────────────────────────────────────────────
+
+function UserApprovalsTab() {
+  const { data: pendingCreators = [], isLoading } = usePendingCreators();
+  const { mutate: approveCreator, isPending: isApproving } =
+    useApproveCreator();
+  const { mutate: rejectCreator, isPending: isRejecting } = useRejectCreator();
+
+  const handleApprove = (principal: Principal, name: string) => {
+    approveCreator(principal, {
+      onSuccess: () => toast.success(`Creator "${name}" approved.`),
+      onError: () => toast.error("Failed to approve creator."),
+    });
+  };
+
+  const handleReject = (principal: Principal, name: string) => {
+    rejectCreator(principal, {
+      onSuccess: () => toast.success(`Creator "${name}" rejected.`),
+      onError: () => toast.error("Failed to reject creator."),
+    });
+  };
+
+  return (
+    <motion.div
+      key="approvals"
+      variants={tabVariants}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
+    >
+      <Card className="bg-card/80 border-border">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <CardTitle className="text-base font-display flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-warning" />
+                Pending Algo Creator Approvals
+              </CardTitle>
+              <CardDescription className="text-xs mt-0.5">
+                Review and approve/reject users requesting Algo Creator access
+              </CardDescription>
+            </div>
+            {pendingCreators.length > 0 && (
+              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-warning/90 text-warning-foreground text-[10px] font-bold">
+                {pendingCreators.length}
+              </span>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <ScrollArea className="w-full">
+            <Table data-ocid="admin.approvals.table">
+              <TableHeader>
+                <TableRow className="border-border hover:bg-transparent">
+                  {[
+                    "Name",
+                    "Email",
+                    "Experience",
+                    "Market",
+                    "Registered",
+                    "Actions",
+                  ].map((h) => (
+                    <TableHead
+                      key={h}
+                      className="text-[10px] text-muted-foreground font-mono uppercase tracking-wider whitespace-nowrap"
+                    >
+                      {h}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  [1, 2, 3].map((sk) => (
+                    <TableRow key={sk} className="border-border">
+                      {[1, 2, 3, 4, 5, 6].map((col) => (
+                        <TableCell key={`${sk}-${col}`}>
+                          <Skeleton className="h-4 w-full" />
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : pendingCreators.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-12">
+                      <div
+                        className="flex flex-col items-center gap-2 text-muted-foreground"
+                        data-ocid="admin.approvals.empty_state"
+                      >
+                        <ShieldCheck className="w-8 h-8 opacity-20" />
+                        <p className="text-sm">No pending approval requests</p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  pendingCreators.map(([principal, profile], i) => (
+                    <TableRow
+                      key={principal.toString()}
+                      className="border-border hover:bg-accent/20 transition-colors"
+                      data-ocid={`admin.approvals.row.${i + 1}`}
+                    >
+                      <TableCell className="font-medium text-sm whitespace-nowrap">
+                        {profile.name || "—"}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                        {profile.email || "—"}
+                      </TableCell>
+                      <TableCell className="text-xs whitespace-nowrap">
+                        <Badge variant="outline" className="text-[10px]">
+                          {profile.experienceLevel || "—"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs whitespace-nowrap">
+                        {profile.tradingMarket || "—"}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground font-mono whitespace-nowrap">
+                        {profile.joinedAt
+                          ? new Date(
+                              Number(profile.joinedAt) > 1e12
+                                ? Number(profile.joinedAt) / 1e6
+                                : Number(profile.joinedAt),
+                            ).toLocaleDateString("en-IN")
+                          : "—"}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2 whitespace-nowrap">
+                          <Button
+                            size="sm"
+                            className="h-7 text-xs gap-1 bg-profit hover:bg-profit/90 text-white"
+                            onClick={() =>
+                              handleApprove(principal, profile.name)
+                            }
+                            disabled={isApproving || isRejecting}
+                            data-ocid={`admin.approvals.confirm_button.${i + 1}`}
+                          >
+                            <ShieldCheck className="w-3 h-3" />
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-7 text-xs gap-1"
+                            onClick={() =>
+                              handleReject(principal, profile.name)
+                            }
+                            disabled={isApproving || isRejecting}
+                            data-ocid={`admin.approvals.delete_button.${i + 1}`}
+                          >
+                            <X className="w-3 h-3" />
+                            Reject
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </ScrollArea>
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+}
+
+// ── All Users Tab ─────────────────────────────────────────────────────────────
+
+function AllUsersTab() {
+  const { data: allUsers = [], isLoading } = useAllUsers();
+  const [roleFilter, setRoleFilter] = useState("All");
+
+  const filtered =
+    roleFilter === "All"
+      ? allUsers
+      : allUsers.filter(([, profile]) => profile.role === roleFilter);
+
+  const roleBadge = (role: string) => {
+    const map: Record<string, string> = {
+      admin: "bg-loss/10 text-loss border-loss/30",
+      AlgoCreator:
+        "bg-[oklch(0.65_0.2_290)/10] text-[oklch(0.72_0.18_290)] border-[oklch(0.65_0.2_290)/30]",
+      Trader: "bg-primary/10 text-primary border-primary/30",
+      Viewer: "bg-muted/40 text-muted-foreground border-border",
+    };
+    return (
+      <Badge
+        variant="outline"
+        className={`text-[10px] border ${map[role] ?? map.Trader}`}
+      >
+        {role}
+      </Badge>
+    );
+  };
+
+  return (
+    <motion.div
+      key="allusers"
+      variants={tabVariants}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
+    >
+      <Card className="bg-card/80 border-border">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <CardTitle className="text-base font-display flex items-center gap-2">
+                <Eye className="w-4 h-4 text-primary" />
+                All Users
+              </CardTitle>
+              <CardDescription className="text-xs mt-0.5">
+                {allUsers.length} registered users
+              </CardDescription>
+            </div>
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <SelectTrigger
+                className="h-8 bg-input text-xs w-36"
+                data-ocid="admin.users.select"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-popover border-border">
+                {["All", "admin", "AlgoCreator", "Trader", "Viewer"].map(
+                  (r) => (
+                    <SelectItem key={r} value={r} className="text-xs">
+                      {r}
+                    </SelectItem>
+                  ),
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <ScrollArea className="w-full">
+            <Table data-ocid="admin.users.table">
+              <TableHeader>
+                <TableRow className="border-border hover:bg-transparent">
+                  {[
+                    "Name",
+                    "Email",
+                    "Role",
+                    "Country",
+                    "Experience",
+                    "Joined",
+                  ].map((h) => (
+                    <TableHead
+                      key={h}
+                      className="text-[10px] text-muted-foreground font-mono uppercase tracking-wider whitespace-nowrap"
+                    >
+                      {h}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  [1, 2, 3, 4].map((sk) => (
+                    <TableRow key={sk} className="border-border">
+                      {[1, 2, 3, 4, 5, 6].map((col) => (
+                        <TableCell key={`${sk}-${col}`}>
+                          <Skeleton className="h-4 w-full" />
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : filtered.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-12">
+                      <div
+                        className="flex flex-col items-center gap-2 text-muted-foreground"
+                        data-ocid="admin.users.empty_state"
+                      >
+                        <Eye className="w-8 h-8 opacity-20" />
+                        <p className="text-sm">No users found</p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filtered.map(([principal, profile], i) => (
+                    <TableRow
+                      key={principal.toString()}
+                      className="border-border hover:bg-accent/20 transition-colors"
+                      data-ocid={`admin.users.row.${i + 1}`}
+                    >
+                      <TableCell className="font-medium text-sm whitespace-nowrap">
+                        {profile.name || "—"}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                        {profile.email || "—"}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {roleBadge(profile.role || "Trader")}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                        {profile.country || "—"}
+                      </TableCell>
+                      <TableCell className="text-xs whitespace-nowrap">
+                        <Badge variant="outline" className="text-[10px]">
+                          {profile.experienceLevel || "—"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground font-mono whitespace-nowrap">
+                        {profile.joinedAt
+                          ? new Date(
+                              Number(profile.joinedAt) > 1e12
+                                ? Number(profile.joinedAt) / 1e6
+                                : Number(profile.joinedAt),
+                            ).toLocaleDateString("en-IN")
+                          : "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </ScrollArea>
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+}
+
 // ── Password Gate ─────────────────────────────────────────────────────────────
 
 const ADMIN_PASSWORD = "Santhosh1@";
@@ -3096,6 +3424,7 @@ export function AdminPage() {
     () => sessionStorage.getItem("admin_auth") === "1",
   );
   const [activeTab, setActiveTab] = useState("overview");
+  const { data: pendingCreators = [] } = usePendingCreators();
 
   if (isInitializing) {
     return (
@@ -3113,29 +3442,70 @@ export function AdminPage() {
   }
 
   const tabs = [
-    { value: "overview", label: "Overview", Icon: Activity, isNew: false },
+    {
+      value: "overview",
+      label: "Overview",
+      Icon: Activity,
+      isNew: false,
+      badge: 0,
+    },
     {
       value: "monitor",
       label: "Trade Monitor",
       Icon: BarChart3,
       isNew: false,
+      badge: 0,
     },
     {
       value: "strategies",
       label: "Strategies",
       Icon: BarChart3,
       isNew: false,
+      badge: 0,
     },
     {
       value: "ninetwenty",
       label: "9:20 Strategy",
       Icon: TrendingUp,
       isNew: true,
+      badge: 0,
     },
-    { value: "backtest", label: "Backtest", Icon: FlaskConical, isNew: false },
-    { value: "paperlive", label: "Paper/Live", Icon: Layers, isNew: false },
-    { value: "broker", label: "Broker API", Icon: LinkIcon, isNew: false },
-    { value: "risk", label: "Risk Mgmt", Icon: ShieldAlert, isNew: false },
+    {
+      value: "backtest",
+      label: "Backtest",
+      Icon: FlaskConical,
+      isNew: false,
+      badge: 0,
+    },
+    {
+      value: "paperlive",
+      label: "Paper/Live",
+      Icon: Layers,
+      isNew: false,
+      badge: 0,
+    },
+    {
+      value: "broker",
+      label: "Broker API",
+      Icon: LinkIcon,
+      isNew: false,
+      badge: 0,
+    },
+    {
+      value: "risk",
+      label: "Risk Mgmt",
+      Icon: ShieldAlert,
+      isNew: false,
+      badge: 0,
+    },
+    {
+      value: "approvals",
+      label: "Approvals",
+      Icon: ShieldCheck,
+      isNew: false,
+      badge: pendingCreators.length,
+    },
+    { value: "users", label: "All Users", Icon: Eye, isNew: false, badge: 0 },
   ];
 
   return (
@@ -3172,7 +3542,7 @@ export function AdminPage() {
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <ScrollArea className="w-full">
               <TabsList className="mb-4 bg-card/60 inline-flex w-auto gap-0.5">
-                {tabs.map(({ value, label, Icon, isNew }) => (
+                {tabs.map(({ value, label, Icon, isNew, badge }) => (
                   <TabsTrigger
                     key={value}
                     value={value}
@@ -3184,6 +3554,11 @@ export function AdminPage() {
                     {isNew && (
                       <span className="ml-1 px-1 py-0.5 text-[8px] font-bold uppercase tracking-wider rounded bg-warning/90 text-warning-foreground leading-none">
                         NEW
+                      </span>
+                    )}
+                    {badge > 0 && (
+                      <span className="ml-1 w-4 h-4 flex items-center justify-center rounded-full bg-loss text-white text-[8px] font-bold">
+                        {badge}
                       </span>
                     )}
                   </TabsTrigger>
@@ -3230,6 +3605,16 @@ export function AdminPage() {
               {activeTab === "risk" && (
                 <TabsContent value="risk" forceMount>
                   <RiskMgmtTab />
+                </TabsContent>
+              )}
+              {activeTab === "approvals" && (
+                <TabsContent value="approvals" forceMount>
+                  <UserApprovalsTab />
+                </TabsContent>
+              )}
+              {activeTab === "users" && (
+                <TabsContent value="users" forceMount>
+                  <AllUsersTab />
                 </TabsContent>
               )}
             </AnimatePresence>

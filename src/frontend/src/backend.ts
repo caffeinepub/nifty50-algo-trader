@@ -163,8 +163,23 @@ export interface BrokerConfig {
     tradingMode: string;
 }
 export interface UserProfile {
+    experienceLevel: string;
+    country: string;
+    followersCount: bigint;
     name: string;
+    joinedAt: bigint;
+    role: string;
+    pendingApproval: boolean;
     email: string;
+    tradingMarket: string;
+}
+export interface ApiKey {
+    id: bigint;
+    active: boolean;
+    userId: string;
+    name: string;
+    createdAt: bigint;
+    keyHash: string;
 }
 export enum UserRole {
     admin = "admin",
@@ -175,11 +190,14 @@ export interface backendInterface {
     _initializeAccessControlWithSecret(userSecret: string): Promise<void>;
     addStrategy(name: string, shortWindow: bigint, longWindow: bigint, stopLossPercent: number, targetPercent: number, positionSize: bigint, riskPercent: number, algorithmFile: string, strategyType: string): Promise<bigint>;
     addTrade(symbol: string, strategyName: string, side: string, quantity: bigint, price: number, mode: string): Promise<bigint>;
+    approveCreator(user: Principal): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     clearNinetwentyState(): Promise<void>;
     closeTrade(id: bigint): Promise<void>;
     exitAllTrades(): Promise<void>;
+    followUser(target: Principal): Promise<void>;
     forceAddDailyCandle(open: number, high: number, low: number, close: number, volume: bigint, symbol: string, timeframe: string, timestamp: bigint): Promise<void>;
+    generateApiKey(name: string): Promise<ApiKey>;
     getAdminDashboardStats(): Promise<{
         activeStrategies: bigint;
         todayPnl: number;
@@ -196,20 +214,25 @@ export interface backendInterface {
         totalUsers: bigint;
     }>;
     getAllTrades(): Promise<Array<Trade>>;
+    getAllUsers(): Promise<Array<[Principal, UserProfile]>>;
     getBrokerConfig(): Promise<BrokerConfig>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getCandles(symbol: string, timeframe: string, limit: bigint): Promise<Array<Candle>>;
+    getMyApiKeys(): Promise<Array<ApiKey>>;
     getMyBacktestResults(): Promise<Array<BacktestResult>>;
     getMyTrades(): Promise<Array<Trade>>;
     getNinetwentyLine(): Promise<number>;
     getNinetwentyState(): Promise<NinetwentyState>;
+    getPendingCreators(): Promise<Array<[Principal, UserProfile]>>;
     getRiskSettings(): Promise<RiskSettings>;
     getSquareOffMode(): Promise<boolean>;
     getStrategies(): Promise<Array<Strategy>>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     isCallerAdmin(): Promise<boolean>;
     modifyStopLoss(tradeId: bigint, newStopLoss: number): Promise<void>;
+    rejectCreator(user: Principal): Promise<void>;
+    revokeApiKey(keyId: bigint): Promise<void>;
     saveBacktestResult(strategyId: bigint, symbol: string, timeframe: string, totalPnl: number, winRate: number, maxDrawdown: number, sharpeRatio: number, totalTrades: bigint): Promise<bigint>;
     saveBrokerConfig(apiKey: string, secret: string, accessToken: string, redirectUrl: string, webhook: string, paperMode: boolean, liveMode: boolean, tradingMode: string): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
@@ -264,6 +287,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.addTrade(arg0, arg1, arg2, arg3, arg4, arg5);
+            return result;
+        }
+    }
+    async approveCreator(arg0: Principal): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.approveCreator(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.approveCreator(arg0);
             return result;
         }
     }
@@ -323,6 +360,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async followUser(arg0: Principal): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.followUser(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.followUser(arg0);
+            return result;
+        }
+    }
     async forceAddDailyCandle(arg0: number, arg1: number, arg2: number, arg3: number, arg4: bigint, arg5: string, arg6: string, arg7: bigint): Promise<void> {
         if (this.processError) {
             try {
@@ -334,6 +385,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.forceAddDailyCandle(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7);
+            return result;
+        }
+    }
+    async generateApiKey(arg0: string): Promise<ApiKey> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.generateApiKey(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.generateApiKey(arg0);
             return result;
         }
     }
@@ -389,6 +454,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.getAllTrades();
+            return result;
+        }
+    }
+    async getAllUsers(): Promise<Array<[Principal, UserProfile]>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getAllUsers();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getAllUsers();
             return result;
         }
     }
@@ -448,6 +527,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async getMyApiKeys(): Promise<Array<ApiKey>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getMyApiKeys();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getMyApiKeys();
+            return result;
+        }
+    }
     async getMyBacktestResults(): Promise<Array<BacktestResult>> {
         if (this.processError) {
             try {
@@ -501,6 +594,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.getNinetwentyState();
+            return result;
+        }
+    }
+    async getPendingCreators(): Promise<Array<[Principal, UserProfile]>> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getPendingCreators();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getPendingCreators();
             return result;
         }
     }
@@ -585,6 +692,34 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.modifyStopLoss(arg0, arg1);
+            return result;
+        }
+    }
+    async rejectCreator(arg0: Principal): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.rejectCreator(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.rejectCreator(arg0);
+            return result;
+        }
+    }
+    async revokeApiKey(arg0: bigint): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.revokeApiKey(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.revokeApiKey(arg0);
             return result;
         }
     }

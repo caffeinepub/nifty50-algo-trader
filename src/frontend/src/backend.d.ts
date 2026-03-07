@@ -81,8 +81,23 @@ export interface BrokerConfig {
     tradingMode: string;
 }
 export interface UserProfile {
+    experienceLevel: string;
+    country: string;
+    followersCount: bigint;
     name: string;
+    joinedAt: bigint;
+    role: string;
+    pendingApproval: boolean;
     email: string;
+    tradingMarket: string;
+}
+export interface ApiKey {
+    id: bigint;
+    active: boolean;
+    userId: string;
+    name: string;
+    createdAt: bigint;
+    keyHash: string;
 }
 export enum UserRole {
     admin = "admin",
@@ -92,11 +107,14 @@ export enum UserRole {
 export interface backendInterface {
     addStrategy(name: string, shortWindow: bigint, longWindow: bigint, stopLossPercent: number, targetPercent: number, positionSize: bigint, riskPercent: number, algorithmFile: string, strategyType: string): Promise<bigint>;
     addTrade(symbol: string, strategyName: string, side: string, quantity: bigint, price: number, mode: string): Promise<bigint>;
+    approveCreator(user: Principal): Promise<void>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     clearNinetwentyState(): Promise<void>;
     closeTrade(id: bigint): Promise<void>;
     exitAllTrades(): Promise<void>;
+    followUser(target: Principal): Promise<void>;
     forceAddDailyCandle(open: number, high: number, low: number, close: number, volume: bigint, symbol: string, timeframe: string, timestamp: bigint): Promise<void>;
+    generateApiKey(name: string): Promise<ApiKey>;
     getAdminDashboardStats(): Promise<{
         activeStrategies: bigint;
         todayPnl: number;
@@ -113,20 +131,25 @@ export interface backendInterface {
         totalUsers: bigint;
     }>;
     getAllTrades(): Promise<Array<Trade>>;
+    getAllUsers(): Promise<Array<[Principal, UserProfile]>>;
     getBrokerConfig(): Promise<BrokerConfig>;
     getCallerUserProfile(): Promise<UserProfile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getCandles(symbol: string, timeframe: string, limit: bigint): Promise<Array<Candle>>;
+    getMyApiKeys(): Promise<Array<ApiKey>>;
     getMyBacktestResults(): Promise<Array<BacktestResult>>;
     getMyTrades(): Promise<Array<Trade>>;
     getNinetwentyLine(): Promise<number>;
     getNinetwentyState(): Promise<NinetwentyState>;
+    getPendingCreators(): Promise<Array<[Principal, UserProfile]>>;
     getRiskSettings(): Promise<RiskSettings>;
     getSquareOffMode(): Promise<boolean>;
     getStrategies(): Promise<Array<Strategy>>;
     getUserProfile(user: Principal): Promise<UserProfile | null>;
     isCallerAdmin(): Promise<boolean>;
     modifyStopLoss(tradeId: bigint, newStopLoss: number): Promise<void>;
+    rejectCreator(user: Principal): Promise<void>;
+    revokeApiKey(keyId: bigint): Promise<void>;
     saveBacktestResult(strategyId: bigint, symbol: string, timeframe: string, totalPnl: number, winRate: number, maxDrawdown: number, sharpeRatio: number, totalTrades: bigint): Promise<bigint>;
     saveBrokerConfig(apiKey: string, secret: string, accessToken: string, redirectUrl: string, webhook: string, paperMode: boolean, liveMode: boolean, tradingMode: string): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;

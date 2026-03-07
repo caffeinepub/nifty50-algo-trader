@@ -2,18 +2,19 @@ import Map "mo:core/Map";
 import List "mo:core/List";
 import Array "mo:core/Array";
 import Nat "mo:core/Nat";
+import Int "mo:core/Int";
 import Text "mo:core/Text";
 import Float "mo:core/Float";
-import Int "mo:core/Int";
 import Principal "mo:core/Principal";
 import Runtime "mo:core/Runtime";
 import Time "mo:core/Time";
 
 import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
+
 import Migration "migration";
 
-// Data migration on upgrade
+// With migration
 (with migration = Migration.run)
 actor {
   // Type definitions
@@ -93,6 +94,13 @@ actor {
   type UserProfile = {
     name : Text;
     email : Text;
+    country : Text;
+    experienceLevel : Text;
+    tradingMarket : Text;
+    role : Text; // "admin", "algo_creator", "trader", "viewer"
+    pendingApproval : Bool;
+    followersCount : Nat;
+    joinedAt : Int;
   };
 
   type NinetwentyState = {
@@ -102,6 +110,15 @@ actor {
     stopLoss : Float;
   };
 
+  type ApiKey = {
+    id : Nat;
+    userId : Text;
+    name : Text;
+    keyHash : Text;
+    createdAt : Int;
+    active : Bool;
+  };
+
   let accessControlState = AccessControl.initState();
   include MixinAuthorization(accessControlState);
 
@@ -109,6 +126,7 @@ actor {
   var tradeId = 0;
   var backtestId = 0;
   var strategyId = 1;
+  var apiKeyId = 1; // ApiKey id counter
 
   var targetPnlAdd = 0.0;
   var squareOffMode = false : Bool;
@@ -123,6 +141,157 @@ actor {
   let userProfiles = Map.empty<Principal, UserProfile>();
   let riskSettings = Map.empty<Principal, RiskSettings>();
   let ninetwentyStates = Map.empty<Principal, NinetwentyState>();
+  let userApiKeys = Map.empty<Principal, List.List<ApiKey>>(); // New: Map for user's API keys
+
+  /* --- Extended User Management and API Keys --- */
+
+  public shared ({ caller }) func generateApiKey(name : Text) : async ApiKey {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can generate API keys");
+    };
+
+    let keyHash = name.concat("_").concat(Time.now().toText());
+    let apiKey : ApiKey = {
+      id = apiKeyId;
+      userId = caller.toText();
+      name;
+      keyHash;
+      createdAt = Time.now();
+      active = true;
+    };
+
+    // Add to user's API keys
+    let existingKeys = switch (userApiKeys.get(caller)) {
+      case (null) { List.empty<ApiKey>() };
+      case (?keys) { keys };
+    };
+    existingKeys.add(apiKey);
+    userApiKeys.add(caller, existingKeys);
+
+    apiKeyId += 1;
+    apiKey;
+  };
+
+  public shared ({ caller }) func revokeApiKey(keyId : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can revoke API keys");
+    };
+
+    let apiKeys = switch (userApiKeys.get(caller)) {
+      case (null) { Runtime.trap("No API keys found for this user") };
+      case (?keys) { keys };
+    };
+
+    var keyFound = false;
+    let updatedKeys = apiKeys.map<ApiKey, ApiKey>(
+      func(key) {
+        if (key.id == keyId) {
+          // Verify ownership: key must belong to caller
+          if (key.userId != caller.toText()) {
+            Runtime.trap("Unauthorized: Can only revoke your own API keys");
+          };
+          keyFound := true;
+          { key with active = false };
+        } else {
+          key;
+        };
+      }
+    );
+
+    if (not keyFound) {
+      Runtime.trap("API key with id " # keyId.toText() # " not found");
+    };
+
+    userApiKeys.add(caller, updatedKeys);
+  };
+
+  public query ({ caller }) func getMyApiKeys() : async [ApiKey] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can get their api keys");
+    };
+
+    switch (userApiKeys.get(caller)) {
+      case (null) { [] };
+      case (?keys) { keys.toArray() };
+    };
+  };
+
+  public shared ({ caller }) func approveCreator(user : Principal) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can approve creators");
+    };
+
+    let userProfile = switch (userProfiles.get(user)) {
+      case (null) { Runtime.trap("User not found") };
+      case (?profile) { profile };
+    };
+
+    let updatedProfile = {
+      userProfile with
+      role = "algo_creator";
+      pendingApproval = false;
+    };
+
+    userProfiles.add(user, updatedProfile);
+  };
+
+  public shared ({ caller }) func rejectCreator(user : Principal) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can reject creators");
+    };
+
+    let userProfile = switch (userProfiles.get(user)) {
+      case (null) { Runtime.trap("User not found") };
+      case (?profile) { profile };
+    };
+
+    // Only reject pending creators, not approved ones
+    if (userProfile.pendingApproval) {
+      userProfiles.remove(user);
+    } else {
+      Runtime.trap("Cannot reject approved creators");
+    };
+  };
+
+  public query ({ caller }) func getPendingCreators() : async [(Principal, UserProfile)] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can get pending creators");
+    };
+
+    let filteredProfiles = userProfiles.toArray().filter(
+      func((_, profile)) {
+        profile.pendingApproval == true;
+      }
+    );
+
+    filteredProfiles;
+  };
+
+  public query ({ caller }) func getAllUsers() : async [(Principal, UserProfile)] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can get all users");
+    };
+    userProfiles.toArray();
+  };
+
+  public shared ({ caller }) func followUser(target : Principal) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can follow other users");
+    };
+
+    let userProfile = switch (userProfiles.get(target)) {
+      case (null) { Runtime.trap("User not found") };
+      case (?profile) { profile };
+    };
+
+    let updatedProfile = {
+      userProfile with followersCount = userProfile.followersCount + 1;
+    };
+
+    userProfiles.add(target, updatedProfile);
+  };
+
+  /* --- Keep existing functions --- */
 
   // 9:20 Candle Strategy state management
   public shared ({ caller }) func setNinetwentyLine(line : Float) : async () {
@@ -241,8 +410,8 @@ actor {
   };
 
   public query ({ caller }) func getUserProfile(user : Principal) : async ?UserProfile {
-    if (caller != user and not AccessControl.isAdmin(accessControlState, caller)) {
-      Runtime.trap("Unauthorized: Can only view your own profile");
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view profiles");
     };
     userProfiles.get(user);
   };

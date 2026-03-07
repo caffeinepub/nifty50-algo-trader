@@ -10,6 +10,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -20,16 +21,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   Activity,
   BarChart3,
+  CreditCard,
   DollarSign,
+  FlaskConical,
+  Key,
+  LayoutDashboard,
   Loader2,
+  Menu,
   Save,
+  Store,
   TrendingDown,
   TrendingUp,
   Trophy,
+  X,
   Zap,
 } from "lucide-react";
 import { motion } from "motion/react";
@@ -71,6 +79,143 @@ function useAuthGuard() {
   }
 
   return { isLoggedIn, isInitializing };
+}
+
+// ── Sidebar Navigation ────────────────────────────────────────────────────────
+
+const NAV_ITEMS = [
+  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/dashboard/strategies", label: "My Strategies", icon: BarChart3 },
+  { to: "/dashboard/backtest", label: "Backtesting", icon: Activity },
+  { to: "/dashboard/live", label: "Live Trading", icon: Zap },
+  { to: "/dashboard/paper", label: "Paper Trading", icon: FlaskConical },
+  { to: "/dashboard/marketplace", label: "Marketplace", icon: Store },
+  { to: "/dashboard/api-keys", label: "API Keys", icon: Key },
+  { to: "/dashboard/billing", label: "Billing", icon: CreditCard },
+];
+
+function getRoleBadge(role: string) {
+  const roles: Record<string, { label: string; className: string }> = {
+    admin: {
+      label: "Admin",
+      className: "bg-loss/20 text-loss border-loss/30",
+    },
+    AlgoCreator: {
+      label: "Algo Creator",
+      className:
+        "bg-[oklch(0.65_0.2_290)/15] text-[oklch(0.72_0.18_290)] border-[oklch(0.65_0.2_290)/40]",
+    },
+    Trader: {
+      label: "Trader",
+      className: "bg-primary/20 text-primary border-primary/30",
+    },
+    Viewer: {
+      label: "Viewer",
+      className: "bg-muted/40 text-muted-foreground border-border",
+    },
+  };
+  const r = roles[role] ?? roles.Trader;
+  return (
+    <Badge variant="outline" className={`text-[10px] border ${r.className}`}>
+      {r.label}
+    </Badge>
+  );
+}
+
+interface SidebarProps {
+  role: string;
+  userName: string;
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+function Sidebar({ role, userName, isOpen, onClose }: SidebarProps) {
+  return (
+    <>
+      {/* Mobile overlay */}
+      {isOpen && (
+        <button
+          type="button"
+          aria-label="Close sidebar"
+          className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 lg:hidden w-full h-full border-0 cursor-default"
+          onClick={onClose}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside
+        className={`
+          fixed top-0 left-0 h-full w-56 bg-sidebar border-r border-sidebar-border z-50
+          flex flex-col transition-transform duration-200
+          lg:relative lg:translate-x-0 lg:z-auto
+          ${isOpen ? "translate-x-0" : "-translate-x-full"}
+        `}
+      >
+        {/* Logo + close */}
+        <div className="flex items-center justify-between px-4 h-14 border-b border-sidebar-border flex-shrink-0">
+          <Link
+            to="/"
+            className="flex items-center gap-2"
+            data-ocid="sidebar.link"
+          >
+            <div className="w-6 h-6 rounded bg-primary/10 border border-primary/30 flex items-center justify-center">
+              <TrendingUp className="w-3.5 h-3.5 text-primary" />
+            </div>
+            <span className="font-display font-bold text-sm tracking-tight">
+              NIFTY50<span className="text-primary">Algo</span>
+            </span>
+          </Link>
+          <button
+            type="button"
+            onClick={onClose}
+            className="lg:hidden text-muted-foreground hover:text-foreground"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* User info */}
+        <div className="px-4 py-3 border-b border-sidebar-border flex-shrink-0">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-7 h-7 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center text-xs font-bold text-primary">
+              {userName ? userName[0].toUpperCase() : "U"}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium truncate">
+                {userName || "Trader"}
+              </p>
+            </div>
+          </div>
+          {getRoleBadge(role)}
+        </div>
+
+        {/* Nav items */}
+        <ScrollArea className="flex-1">
+          <nav className="p-2 space-y-0.5">
+            {NAV_ITEMS.map((item) => (
+              <Link
+                key={item.to}
+                to={item.to}
+                className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors [&.active]:bg-sidebar-primary/20 [&.active]:text-sidebar-primary"
+                onClick={onClose}
+                data-ocid="sidebar.link"
+              >
+                <item.icon className="w-4 h-4 flex-shrink-0" />
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+        </ScrollArea>
+
+        <Separator className="bg-sidebar-border" />
+        <div className="p-3 flex-shrink-0">
+          <p className="text-[10px] text-sidebar-foreground/40 text-center">
+            v1.0 · NIFTY50 Algo Trader
+          </p>
+        </div>
+      </aside>
+    </>
+  );
 }
 
 // ── Stats Cards ────────────────────────────────────────────────────────────────
@@ -141,7 +286,6 @@ function StatCard({
 // ── Equity Chart ──────────────────────────────────────────────────────────────
 
 function EquityChart({ trades }: { trades: Trade[] }) {
-  // Build a cumulative equity curve
   const sorted = [...trades].sort(
     (a, b) => Number(a.timestamp) - Number(b.timestamp),
   );
@@ -149,13 +293,9 @@ function EquityChart({ trades }: { trades: Trade[] }) {
   const data = [{ time: "Start", equity: 100000 }];
   sorted.forEach((t, i) => {
     equity += t.pnl;
-    data.push({
-      time: `T${i + 1}`,
-      equity: Math.round(equity),
-    });
+    data.push({ time: `T${i + 1}`, equity: Math.round(equity) });
   });
 
-  // If no trades, show flat line
   if (data.length === 1) {
     data.push({ time: "Now", equity: 100000 });
   }
@@ -302,7 +442,6 @@ function BrokerConfigPanel() {
           </div>
         ) : (
           <>
-            {/* Current status */}
             {config?.apiKey && (
               <div className="flex items-center gap-2 p-2 rounded bg-profit/10 border border-profit/20">
                 <div className="w-2 h-2 rounded-full bg-profit animate-pulse-dot" />
@@ -352,7 +491,6 @@ function BrokerConfigPanel() {
             </Button>
 
             <div className="space-y-3 pt-2 border-t border-border">
-              {/* Trading Mode */}
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium">Trading Mode</p>
@@ -376,7 +514,6 @@ function BrokerConfigPanel() {
                 </div>
               </div>
 
-              {/* Algorithm Toggle */}
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium">Algorithm</p>
@@ -411,10 +548,17 @@ function StrategiesPanel() {
   return (
     <Card className="bg-card/80 border-border">
       <CardHeader className="pb-3">
-        <CardTitle className="text-base font-display flex items-center gap-2">
-          <Activity className="w-4 h-4 text-primary" />
-          Active Strategies
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base font-display flex items-center gap-2">
+            <Activity className="w-4 h-4 text-primary" />
+            Active Strategies
+          </CardTitle>
+          <Link to="/dashboard/strategies" data-ocid="strategies.link">
+            <Button variant="ghost" size="sm" className="h-7 text-xs gap-1">
+              View All
+            </Button>
+          </Link>
+        </div>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -471,7 +615,10 @@ function StrategiesPanel() {
 function TradesTable({
   trades,
   isLoading,
-}: { trades: Trade[]; isLoading: boolean }) {
+}: {
+  trades: Trade[];
+  isLoading: boolean;
+}) {
   return (
     <Card className="bg-card/80 border-border">
       <CardHeader className="pb-3">
@@ -617,6 +764,7 @@ export function DashboardPage() {
   const { isLoggedIn, isInitializing } = useAuthGuard();
   const { data: trades = [], isLoading: tradesLoading } = useMyTrades();
   const { data: profile } = useUserProfile();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   if (isInitializing) {
     return (
@@ -632,102 +780,138 @@ export function DashboardPage() {
   if (!isLoggedIn) return null;
 
   const stats = calculateStats(trades);
+  const userRole = profile?.role ?? "Trader";
 
   return (
     <div className="flex flex-col min-h-screen">
       <Header />
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 md:px-6 py-6">
-        {/* Welcome */}
-        <motion.div
-          className="mb-6"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35 }}
-        >
-          <h1 className="font-display text-2xl font-bold">
-            {profile?.name ? `Welcome, ${profile.name}` : "Trading Dashboard"}
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            NIFTY 50 Algorithmic Trading Platform
-          </p>
-        </motion.div>
+      <div className="flex flex-1">
+        <Sidebar
+          role={userRole}
+          userName={profile?.name ?? ""}
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+        />
 
-        {/* Stats Row */}
-        <motion.div
-          className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.05 }}
-        >
-          <StatCard
-            title="Portfolio Value"
-            value={`₹${stats.portfolioValue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`}
-            icon={DollarSign}
-            loading={tradesLoading}
-          />
-          <StatCard
-            title="Total P&L"
-            value={`${stats.totalPnl >= 0 ? "+" : ""}₹${stats.totalPnl.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`}
-            icon={stats.totalPnl >= 0 ? TrendingUp : TrendingDown}
-            positive={stats.totalPnl > 0}
-            negative={stats.totalPnl < 0}
-            loading={tradesLoading}
-          />
-          <StatCard
-            title="Active Trades"
-            value={stats.activeTrades.toString()}
-            icon={Activity}
-            loading={tradesLoading}
-          />
-          <StatCard
-            title="Win Rate"
-            value={`${stats.winRate.toFixed(1)}%`}
-            subtitle={`${trades.filter((t) => t.pnl > 0).length}/${trades.filter((t) => t.pnl !== 0).length} trades`}
-            icon={Trophy}
-            positive={stats.winRate > 50}
-            negative={stats.winRate > 0 && stats.winRate <= 50}
-            loading={tradesLoading}
-          />
-        </motion.div>
+        <main className="flex-1 min-w-0 px-4 md:px-6 py-6">
+          {/* Mobile menu toggle */}
+          <div className="flex items-center gap-3 mb-6 lg:hidden">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="p-1.5 rounded-md border border-border text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <h1 className="font-display text-xl font-bold">Dashboard</h1>
+          </div>
 
-        {/* Main Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          {/* Left column: Broker + Strategies */}
+          {/* Viewer Banner */}
+          {userRole === "Viewer" && (
+            <div className="mb-4 flex items-center gap-3 p-3 bg-muted/30 border border-border rounded-lg">
+              <Badge variant="outline" className="text-muted-foreground">
+                Viewer
+              </Badge>
+              <p className="text-xs text-muted-foreground">
+                You have read-only access. Contact an Admin to upgrade your
+                role.
+              </p>
+            </div>
+          )}
+
+          {/* Welcome */}
           <motion.div
-            className="space-y-4"
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.4, delay: 0.1 }}
+            className="mb-6 hidden lg:block"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35 }}
           >
-            <BrokerConfigPanel />
-            <StrategiesPanel />
+            <div className="flex items-center gap-3">
+              <h1 className="font-display text-2xl font-bold">
+                {profile?.name
+                  ? `Welcome, ${profile.name}`
+                  : "Trading Dashboard"}
+              </h1>
+              {getRoleBadge(userRole)}
+            </div>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              NIFTY 50 Algorithmic Trading Platform
+            </p>
           </motion.div>
 
-          {/* Right columns: Equity Chart + Trades */}
+          {/* Stats Row */}
           <motion.div
-            className="lg:col-span-2 space-y-4"
-            initial={{ opacity: 0, x: 10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.4, delay: 0.15 }}
+            className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.05 }}
           >
-            {/* Equity Chart */}
-            <Card className="bg-card/80 border-border">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base font-display flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-profit" />
-                  Portfolio Performance
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <EquityChart trades={trades} />
-              </CardContent>
-            </Card>
-
-            {/* Trades */}
-            <TradesTable trades={trades} isLoading={tradesLoading} />
+            <StatCard
+              title="Portfolio Value"
+              value={`₹${stats.portfolioValue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`}
+              icon={DollarSign}
+              loading={tradesLoading}
+            />
+            <StatCard
+              title="Total P&L"
+              value={`${stats.totalPnl >= 0 ? "+" : ""}₹${stats.totalPnl.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`}
+              icon={stats.totalPnl >= 0 ? TrendingUp : TrendingDown}
+              positive={stats.totalPnl > 0}
+              negative={stats.totalPnl < 0}
+              loading={tradesLoading}
+            />
+            <StatCard
+              title="Active Trades"
+              value={stats.activeTrades.toString()}
+              icon={Activity}
+              loading={tradesLoading}
+            />
+            <StatCard
+              title="Win Rate"
+              value={`${stats.winRate.toFixed(1)}%`}
+              subtitle={`${trades.filter((t) => t.pnl > 0).length}/${trades.filter((t) => t.pnl !== 0).length} trades`}
+              icon={Trophy}
+              positive={stats.winRate > 50}
+              negative={stats.winRate > 0 && stats.winRate <= 50}
+              loading={tradesLoading}
+            />
           </motion.div>
-        </div>
-      </main>
+
+          {/* Main Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <motion.div
+              className="space-y-4"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.4, delay: 0.1 }}
+            >
+              <BrokerConfigPanel />
+              <StrategiesPanel />
+            </motion.div>
+
+            <motion.div
+              className="lg:col-span-2 space-y-4"
+              initial={{ opacity: 0, x: 10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.4, delay: 0.15 }}
+            >
+              <Card className="bg-card/80 border-border">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base font-display flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-profit" />
+                    Portfolio Performance
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <EquityChart trades={trades} />
+                </CardContent>
+              </Card>
+
+              <TradesTable trades={trades} isLoading={tradesLoading} />
+            </motion.div>
+          </div>
+        </main>
+      </div>
       <Footer />
     </div>
   );

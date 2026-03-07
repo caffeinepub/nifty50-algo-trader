@@ -419,6 +419,114 @@ export function useSaveBacktestResult() {
   });
 }
 
+// ── API Keys ──────────────────────────────────────────────────────────────────
+
+export function useMyApiKeys() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["myApiKeys"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getMyApiKeys();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useGenerateApiKey() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (name: string) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.generateApiKey(name);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["myApiKeys"] });
+    },
+  });
+}
+
+export function useRevokeApiKey() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (keyId: bigint) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.revokeApiKey(keyId);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["myApiKeys"] });
+    },
+  });
+}
+
+// ── Admin Users ───────────────────────────────────────────────────────────────
+
+export function useAllUsers() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["allUsers"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getAllUsers();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function usePendingCreators() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["pendingCreators"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getPendingCreators();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useApproveCreator() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (user: import("@icp-sdk/core/principal").Principal) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.approveCreator(user);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["pendingCreators"] });
+      void queryClient.invalidateQueries({ queryKey: ["allUsers"] });
+    },
+  });
+}
+
+export function useRejectCreator() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (user: import("@icp-sdk/core/principal").Principal) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.rejectCreator(user);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["pendingCreators"] });
+      void queryClient.invalidateQueries({ queryKey: ["allUsers"] });
+    },
+  });
+}
+
+export function useFollowUser() {
+  const { actor } = useActor();
+  return useMutation({
+    mutationFn: async (target: import("@icp-sdk/core/principal").Principal) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.followUser(target);
+    },
+  });
+}
+
 // ── Admin Stats (legacy) ──────────────────────────────────────────────────────
 
 export function useAdminStats() {

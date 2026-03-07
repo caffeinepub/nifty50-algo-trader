@@ -2,67 +2,101 @@
 
 ## Current State
 
-A full-stack trading platform with:
-- Motoko backend: candle storage, strategy CRUD, trade log, broker config, risk settings, backtest results, admin stats
-- Frontend pages: Landing, Login, Register, Dashboard, Backtest, Admin Panel (7 tabs: Overview, Trade Monitor, Strategies, Backtest, Paper/Live Mode, Broker API, Risk Management)
-- Admin panel password-protected with Santhosh1@
-- Existing strategies: Moving Average Crossover with shortWindow/longWindow params
+- Registration page: Full Name + Email + Password fields, Internet Identity auth, saves UserProfile (name, email) to backend
+- Login page: Email + Password UI + Internet Identity auth, redirects to /dashboard
+- Dashboard: Portfolio stats, BrokerConfig (Upstox), Active Strategies panel, EquityChart, TradesTable
+- Admin page: Password-gated (/admin, password = Santhosh1@), 7 tabs: Overview, Trade Monitor, Strategies, Backtest, Paper/Live Mode, Broker API, Risk Management; plus 9:20 Candle Strategy tab
+- Backtest page: Strategy selector, date range, capital, risk; outputs P&L, drawdown, trade history
+- Backend (Motoko): UserProfile (name, email), BrokerConfig, Trade, Strategy, BacktestResult, RiskSettings, NinetwentyState; roles: admin/user/guest via authorization mixin
+- Routes: /, /login, /register, /dashboard, /dashboard/backtest, /admin
 
 ## Requested Changes (Diff)
 
 ### Add
 
-1. **9:20 Candle Strategy** -- New named strategy module that implements:
-   - Timeframe: 5-minute candles
-   - Reference level: closing price of the 9:20 AM candle becomes a horizontal line
-   - Signal logic:
-     - If the NEXT candle (9:25) closes ABOVE the line → CALL (BUY) signal
-     - If the NEXT candle (9:25) closes BELOW the line → PUT (SELL) signal
-   - Stop loss rules (both apply simultaneously):
-     - Rule 1 (Reversal SL): After entering CALL, exit if any subsequent candle closes BELOW the horizontal line. After entering PUT, exit if any subsequent candle closes ABOVE the line.
-     - Rule 2 (Fixed SL): Set a hard stop loss 7 points BELOW the horizontal line for CALL trades (line - 7), and 7 points ABOVE the horizontal line for PUT trades (line + 7)
-   - The horizontal line value persists throughout the trading day
+**Registration page enhancements:**
+- Country dropdown (list of countries)
+- Experience Level selector: Beginner / Intermediate / Professional
+- Trading Market multi-select or selector: NIFTY / BankNifty / Stocks / Crypto
+- Password strength indicator (visual bar + requirements checklist)
+- Confirm Password field with match validation
+- Accept Terms & Privacy Policy checkbox
+- Store country, experienceLevel, tradingMarket, role in extended UserProfile
+- Backend: extend UserProfile type to include country, experienceLevel, tradingMarket, role fields
 
-2. **9:20 Strategy Visualizer** -- New dedicated page/section in the admin panel (new tab "9:20 Strategy") that shows:
-   - A 5-minute candlestick chart for NIFTY50
-   - A horizontal line marking the 9:20 candle's close price
-   - Visual annotations for CALL/PUT signal arrows on the 9:25 candle
-   - Stop loss levels drawn as dashed horizontal lines (line-7 and the reversal line)
-   - Current signal status: CALL / PUT / WAITING
-   - Real-time P&L for the current trade
-   - Entry price, Stop Loss price, Current price display
-   - A "Simulate" button to run the strategy on today's simulated candle data
+**Login page enhancements:**
+- "Login with Google" button (UI-only, disabled with tooltip: "Coming soon")
+- "Login with GitHub" button (UI-only, disabled with tooltip: "Coming soon")
+- MFA notice section: show info about OTP/Authenticator (UI informational)
 
-3. **Backend: strategy config for 9:20** -- Save the 9:20 strategy as a named Strategy entry with a special `strategyType` field of "nine_twenty". Add backend support to store `ninetwentyLine` (the horizontal line value) and `ninetwentySignal` (CALL/PUT/NONE) per user.
+**RBAC system:**
+- Roles: Admin, AlgoCreator, Trader, Viewer (mapped onto existing admin/user/guest)
+- Extended UserProfile stores role field
+- Role badge shown on dashboard header
+- Viewer role: read-only dashboard, no trade actions
+- AlgoCreator role: access to My Strategies + Marketplace
+- Trader role: full dashboard access
+- Admin: full access
+
+**New Dashboard sidebar navigation (tabs/sections):**
+- Dashboard (existing stats + charts)
+- My Strategies (list of user's strategies, add strategy CTA)
+- Backtesting (link to /dashboard/backtest)
+- Live Trading (redirect to live trades panel)
+- Paper Trading (redirect to paper trades panel)
+- Marketplace (algo marketplace UI - sell/buy algorithms)
+- API Keys (generate + manage API keys)
+- Billing (billing placeholder page)
+
+**API Keys page (/dashboard/api-keys):**
+- Generate API Key button
+- List of API keys (name, key masked, created date, status)
+- Connect Broker section: Upstox API, Zerodha API, Angel One API (each with API key + secret fields)
+- Backend: store ApiKey records per user
+
+**Algo Creator Profile page (/profile/:userId or /dashboard/profile):**
+- Profile header (name, role badge, join date)
+- Strategy List (user's strategies)
+- Backtest Results summary table
+- Sharpe Ratio stat
+- Win Rate stat
+- Followers count (mock)
+
+**Admin Approval System:**
+- New route /admin/approvals (inside admin panel as a new tab)
+- List of users who registered with role = AlgoCreator
+- Each row: name, email, registration date, Approve / Reject buttons
+- On approve: backend promotes user to AlgoCreator (custom role stored)
+- On reject: marks as rejected
+- Backend: add pendingApproval field to UserProfile; add approveUser / rejectUser admin functions
+
+**Backend additions:**
+- Extend UserProfile: add country, experienceLevel, tradingMarket, role, pendingApproval, followersCount, apiKeys fields
+- Add ApiKey type and per-user storage
+- Add generateApiKey / revokeApiKey / getMyApiKeys functions
+- Add approveCreator / rejectCreator admin functions
 
 ### Modify
 
-- **Strategies Tab in Admin Panel**: Pre-populate the 9:20 Candle strategy in the strategies list with a special badge/label "9:20 Strategy" and show its unique parameters (Reference Line, SL Offset = 7 pts)
-- **Backend Strategy type**: Add `strategyType` field to the Strategy record to distinguish "nine_twenty" from "ma_crossover" etc.
-- **Backtest Panel**: Add "9:20 Candle" as a selectable strategy in the backtest dropdown with relevant backtest simulation logic
+- RegisterPage: replace minimal form with full 7-field form + password strength + terms checkbox
+- LoginPage: add social login buttons (UI-only disabled) + MFA info section
+- DashboardPage: add left sidebar navigation with all 8 sections, show role badge in header
+- routeTree.ts: add /dashboard/api-keys, /dashboard/profile, /dashboard/marketplace, /dashboard/billing routes
+- AdminPage: add new "User Approvals" tab
+- UserProfile backend type: extend with new fields
 
 ### Remove
 
-- Nothing removed
+Nothing removed; all existing functionality preserved.
 
 ## Implementation Plan
 
-1. Update Motoko backend:
-   - Add `strategyType` field (Text) to `Strategy` type
-   - Add `ninetwentyLine` and `ninetwentySignal` storage per principal
-   - Add `setNinetwentyLine(value: Float)` and `getNinetwentyLine()` query
-   - Add `setNinetwentySignal(signal: Text)` and `getNinetwentySignal()` query
-   - Update `addStrategy` to accept optional `strategyType` param
-
-2. Frontend: New "9:20 Strategy" tab in the Admin Panel:
-   - Simulate 5-minute NIFTY50 candle data from 9:00 to 15:30 with realistic OHLCV values
-   - Draw candlestick chart using SVG/Canvas
-   - Overlay horizontal line at 9:20 close
-   - Draw stop loss lines (line-7 dashed, line itself solid)
-   - Signal detection logic running client-side on simulated candle array
-   - Show entry, SL, current price, P&L in stat cards
-   - "Simulate Day" button regenerates candle data and recalculates signal
-   - Wire to backend to persist the line value and signal
-
-3. Frontend: Update StrategiesTab to show 9:20 strategy with special badge
-4. Frontend: Update BacktestTab to include "9:20 Candle" option with simulation
+1. Extend Motoko backend: UserProfile type (country, experienceLevel, tradingMarket, role, pendingApproval, followersCount), ApiKey type, generateApiKey/revokeApiKey/getMyApiKeys, approveCreator/rejectCreator admin functions
+2. Regenerate backend.d.ts to reflect new types
+3. Update RegisterPage: 7-field form, password strength bar, confirm password, country dropdown, experience selector, trading market selector, terms checkbox
+4. Update LoginPage: social login buttons (disabled UI), MFA info panel
+5. Refactor DashboardPage: add collapsible sidebar nav (Dashboard, My Strategies, Backtesting, Live Trading, Paper Trading, Marketplace, API Keys, Billing), role badge in header
+6. Create new pages: ApiKeysPage, MarketplacePage, BillingPage, AlgoCreatorProfilePage
+7. Update AdminPage: add User Approvals tab with approve/reject workflow
+8. Update routeTree.ts: register new routes
+9. Update hooks/useQueries: add hooks for new backend APIs

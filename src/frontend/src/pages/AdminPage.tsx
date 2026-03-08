@@ -61,7 +61,7 @@ import {
   X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { Trade } from "../backend.d";
 import { Footer } from "../components/trading/Footer";
@@ -70,6 +70,7 @@ import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
   useAddStrategy,
   useAdminDashboardStats,
+  useAllMarketplaceListings,
   useAllTrades,
   useAllUsers,
   useApproveCreator,
@@ -90,6 +91,7 @@ import {
   useStrategies,
   useToggleSquareOffMode,
   useToggleStrategy,
+  useUpdateStrategyPricing,
 } from "../hooks/useQueries";
 
 // ── Mock Data ─────────────────────────────────────────────────────────────────
@@ -3015,6 +3017,241 @@ function NinetwentyTab() {
   );
 }
 
+// ── Subscriptions / Pricing Tab ───────────────────────────────────────────────
+
+function SubscriptionsTab() {
+  const { data: listings = [], isLoading } = useAllMarketplaceListings();
+  const { mutate: updatePricing, isPending: isUpdating } =
+    useUpdateStrategyPricing();
+
+  // Local state for editable rows: map from listing id to { monthly, lifetime, isFree }
+  const [edits, setEdits] = React.useState<
+    Record<
+      string,
+      { monthlyPrice: string; lifetimePrice: string; isFree: boolean }
+    >
+  >({});
+
+  const getEdit = (id: bigint) => {
+    const key = id.toString();
+    return (
+      edits[key] ?? {
+        monthlyPrice: "",
+        lifetimePrice: "",
+        isFree: false,
+      }
+    );
+  };
+
+  const setEdit = (id: bigint, field: string, value: string | boolean) => {
+    const key = id.toString();
+    const listing = listings.find((l) => l.id === id);
+    const current = edits[key] ?? {
+      monthlyPrice: String(listing?.monthlyPrice ?? 0),
+      lifetimePrice: String(listing?.lifetimePrice ?? 0),
+      isFree: listing?.isFree ?? false,
+    };
+    setEdits((prev) => ({
+      ...prev,
+      [key]: { ...current, [field]: value },
+    }));
+  };
+
+  const handleSave = (id: bigint) => {
+    const key = id.toString();
+    const listing = listings.find((l) => l.id === id);
+    const edit = edits[key] ?? {
+      monthlyPrice: String(listing?.monthlyPrice ?? 0),
+      lifetimePrice: String(listing?.lifetimePrice ?? 0),
+      isFree: listing?.isFree ?? false,
+    };
+    const monthly = Number.parseFloat(edit.monthlyPrice);
+    const lifetime = Number.parseFloat(edit.lifetimePrice);
+    if (Number.isNaN(monthly) || Number.isNaN(lifetime)) {
+      toast.error("Please enter valid prices");
+      return;
+    }
+    updatePricing(
+      {
+        listingId: id,
+        monthlyPrice: monthly,
+        lifetimePrice: lifetime,
+        isFree: edit.isFree,
+      },
+      {
+        onSuccess: () => toast.success("Pricing updated"),
+        onError: () => toast.error("Failed to update pricing"),
+      },
+    );
+  };
+
+  // Initialize edits when listings load
+  React.useEffect(() => {
+    if (listings.length > 0) {
+      const initial: typeof edits = {};
+      for (const l of listings) {
+        initial[l.id.toString()] = {
+          monthlyPrice: String(l.monthlyPrice),
+          lifetimePrice: String(l.lifetimePrice),
+          isFree: l.isFree,
+        };
+      }
+      setEdits(initial);
+    }
+  }, [listings]);
+
+  return (
+    <motion.div
+      key="subscriptions"
+      variants={tabVariants}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
+    >
+      <Card className="bg-card/80 border-border">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-display flex items-center gap-2">
+            <BarChart3 className="w-4 h-4 text-primary" />
+            Strategy Subscription Pricing
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Manage pricing for all marketplace strategy listings
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          <ScrollArea className="w-full">
+            <Table data-ocid="admin.subscriptions.table">
+              <TableHeader>
+                <TableRow className="border-border hover:bg-transparent">
+                  {[
+                    "Strategy",
+                    "Asset",
+                    "Monthly (₹)",
+                    "Lifetime (₹)",
+                    "Free",
+                    "Action",
+                  ].map((h) => (
+                    <TableHead
+                      key={h}
+                      className="text-[10px] text-muted-foreground font-mono uppercase tracking-wider whitespace-nowrap"
+                    >
+                      {h}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  [1, 2, 3].map((sk) => (
+                    <TableRow key={sk} className="border-border">
+                      {[1, 2, 3, 4, 5, 6].map((col) => (
+                        <TableCell key={`${sk}-${col}`}>
+                          <Skeleton className="h-4 w-full" />
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : listings.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-12">
+                      <div
+                        className="flex flex-col items-center gap-2 text-muted-foreground"
+                        data-ocid="admin.subscriptions.empty_state"
+                      >
+                        <BarChart3 className="w-8 h-8 opacity-20" />
+                        <p className="text-sm">No marketplace listings yet</p>
+                        <p className="text-xs opacity-60">
+                          Strategies published via the Marketplace page will
+                          appear here
+                        </p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  listings.map((listing, i) => {
+                    const edit = getEdit(listing.id);
+                    return (
+                      <TableRow
+                        key={listing.id.toString()}
+                        className="border-border hover:bg-accent/20 transition-colors"
+                        data-ocid={`admin.subscriptions.row.${i + 1}`}
+                      >
+                        <TableCell className="font-medium text-sm whitespace-nowrap max-w-[160px] truncate">
+                          {listing.strategyName}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="text-[10px]">
+                            {listing.assetType}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            value={edit.monthlyPrice}
+                            onChange={(e) =>
+                              setEdit(
+                                listing.id,
+                                "monthlyPrice",
+                                e.target.value,
+                              )
+                            }
+                            className="h-7 w-24 bg-input font-mono-data text-xs"
+                            min="0"
+                            data-ocid={`admin.subscriptions.input.${i + 1}`}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            type="number"
+                            value={edit.lifetimePrice}
+                            onChange={(e) =>
+                              setEdit(
+                                listing.id,
+                                "lifetimePrice",
+                                e.target.value,
+                              )
+                            }
+                            className="h-7 w-24 bg-input font-mono-data text-xs"
+                            min="0"
+                            data-ocid={`admin.subscriptions.input.${i + 1}`}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Switch
+                            checked={edit.isFree}
+                            onCheckedChange={(v) =>
+                              setEdit(listing.id, "isFree", v)
+                            }
+                            data-ocid={`admin.subscriptions.switch.${i + 1}`}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            size="sm"
+                            className="h-7 text-xs gap-1 whitespace-nowrap"
+                            onClick={() => handleSave(listing.id)}
+                            disabled={isUpdating}
+                            data-ocid={`admin.subscriptions.save_button.${i + 1}`}
+                          >
+                            {isUpdating ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : null}
+                            Save
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </ScrollArea>
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+}
+
 // ── User Approvals Tab ────────────────────────────────────────────────────────
 
 function UserApprovalsTab() {
@@ -3506,6 +3743,13 @@ export function AdminPage() {
       badge: pendingCreators.length,
     },
     { value: "users", label: "All Users", Icon: Eye, isNew: false, badge: 0 },
+    {
+      value: "subscriptions",
+      label: "Subscriptions",
+      Icon: BarChart3,
+      isNew: false,
+      badge: 0,
+    },
   ];
 
   return (
@@ -3615,6 +3859,11 @@ export function AdminPage() {
               {activeTab === "users" && (
                 <TabsContent value="users" forceMount>
                   <AllUsersTab />
+                </TabsContent>
+              )}
+              {activeTab === "subscriptions" && (
+                <TabsContent value="subscriptions" forceMount>
+                  <SubscriptionsTab />
                 </TabsContent>
               )}
             </AnimatePresence>

@@ -42,6 +42,14 @@ export interface BrokerConfig {
   'liveMode' : boolean,
   'tradingMode' : string,
 }
+export interface BrokerConnection {
+  'broker' : string,
+  'paperMode' : boolean,
+  'secret' : string,
+  'apiKey' : string,
+  'connected' : boolean,
+  'accessToken' : string,
+}
 export interface Candle {
   'low' : number,
   'timeframe' : string,
@@ -52,11 +60,44 @@ export interface Candle {
   'timestamp' : bigint,
   'symbol' : string,
 }
+export interface ExtendedRiskSettings {
+  'autoStopTrading' : boolean,
+  'maxOpenTrades' : bigint,
+  'capitalAllocation' : number,
+  'maxTradeRisk' : number,
+  'maxDailyLoss' : number,
+}
+export interface MarketplaceListing {
+  'id' : bigint,
+  'lifetimePrice' : number,
+  'createdAt' : bigint,
+  'creatorId' : string,
+  'description' : string,
+  'isFree' : boolean,
+  'creatorName' : string,
+  'sharpeRatio' : number,
+  'enabled' : boolean,
+  'subscribers' : bigint,
+  'monthlyPrice' : number,
+  'assetType' : string,
+  'winRate' : number,
+  'strategyName' : string,
+  'maxDrawdown' : number,
+}
 export interface NinetwentyState {
   'line' : number,
   'entry' : number,
   'stopLoss' : number,
   'signal' : string,
+}
+export interface Notification {
+  'id' : bigint,
+  'userId' : string,
+  'notificationType' : string,
+  'read' : boolean,
+  'message' : string,
+  'emailEnabled' : boolean,
+  'timestamp' : bigint,
 }
 export interface RiskSettings {
   'autoShutdown' : boolean,
@@ -76,6 +117,13 @@ export interface Strategy {
   'stopLossPercent' : number,
   'targetPercent' : number,
   'strategyType' : string,
+}
+export interface SubscriptionRecord {
+  'active' : boolean,
+  'subscribedAt' : bigint,
+  'listingId' : bigint,
+  'userId' : string,
+  'plan' : string,
 }
 export interface Trade {
   'id' : bigint,
@@ -107,6 +155,7 @@ export type UserRole = { 'admin' : null } |
   { 'guest' : null };
 export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
+  'addNotification' : ActorMethod<[string, string, string], Notification>,
   'addStrategy' : ActorMethod<
     [string, bigint, bigint, number, number, bigint, number, string, string],
     bigint
@@ -119,6 +168,7 @@ export interface _SERVICE {
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'clearNinetwentyState' : ActorMethod<[], undefined>,
   'closeTrade' : ActorMethod<[bigint], undefined>,
+  'disconnectBroker' : ActorMethod<[string], undefined>,
   'exitAllTrades' : ActorMethod<[], undefined>,
   'followUser' : ActorMethod<[Principal], undefined>,
   'forceAddDailyCandle' : ActorMethod<
@@ -126,6 +176,7 @@ export interface _SERVICE {
     undefined
   >,
   'generateApiKey' : ActorMethod<[string], ApiKey>,
+  'getActiveMarketplaceListings' : ActorMethod<[], Array<MarketplaceListing>>,
   'getAdminDashboardStats' : ActorMethod<
     [],
     {
@@ -150,20 +201,28 @@ export interface _SERVICE {
   'getAllTrades' : ActorMethod<[], Array<Trade>>,
   'getAllUsers' : ActorMethod<[], Array<[Principal, UserProfile]>>,
   'getBrokerConfig' : ActorMethod<[], BrokerConfig>,
+  'getBrokerConnections' : ActorMethod<[], Array<BrokerConnection>>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getCandles' : ActorMethod<[string, string, bigint], Array<Candle>>,
+  'getExtendedRiskSettings' : ActorMethod<[], ExtendedRiskSettings>,
+  'getMarketplaceListings' : ActorMethod<[], Array<MarketplaceListing>>,
   'getMyApiKeys' : ActorMethod<[], Array<ApiKey>>,
   'getMyBacktestResults' : ActorMethod<[], Array<BacktestResult>>,
+  'getMyNotifications' : ActorMethod<[], Array<Notification>>,
   'getMyTrades' : ActorMethod<[], Array<Trade>>,
   'getNinetwentyLine' : ActorMethod<[], number>,
   'getNinetwentyState' : ActorMethod<[], NinetwentyState>,
+  'getNotificationUnreadCount' : ActorMethod<[], bigint>,
   'getPendingCreators' : ActorMethod<[], Array<[Principal, UserProfile]>>,
+  'getPublicUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'getRiskSettings' : ActorMethod<[], RiskSettings>,
   'getSquareOffMode' : ActorMethod<[], boolean>,
   'getStrategies' : ActorMethod<[], Array<Strategy>>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
+  'getUserSubscriptions' : ActorMethod<[], Array<SubscriptionRecord>>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
+  'markNotificationsRead' : ActorMethod<[], undefined>,
   'modifyStopLoss' : ActorMethod<[bigint, number], undefined>,
   'rejectCreator' : ActorMethod<[Principal], undefined>,
   'revokeApiKey' : ActorMethod<[bigint], undefined>,
@@ -175,7 +234,30 @@ export interface _SERVICE {
     [string, string, string, string, string, boolean, boolean, string],
     undefined
   >,
+  'saveBrokerConnection' : ActorMethod<
+    [string, string, string, string, boolean],
+    undefined
+  >,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
+  'saveExtendedRiskSettings' : ActorMethod<
+    [number, number, bigint, number, boolean],
+    undefined
+  >,
+  'saveMarketplaceListing' : ActorMethod<
+    [
+      string,
+      string,
+      string,
+      string,
+      number,
+      number,
+      number,
+      number,
+      number,
+      boolean,
+    ],
+    bigint
+  >,
   'saveRiskSettings' : ActorMethod<
     [number, bigint, number, boolean],
     undefined
@@ -183,9 +265,15 @@ export interface _SERVICE {
   'setNinetwentyLine' : ActorMethod<[number], undefined>,
   'setNinetwentySignal' : ActorMethod<[string, number, number], undefined>,
   'setTradingMode' : ActorMethod<[string], undefined>,
+  'subscribeToStrategy' : ActorMethod<[bigint, string], undefined>,
   'toggleAlgorithm' : ActorMethod<[], undefined>,
   'toggleSquareOffMode' : ActorMethod<[], undefined>,
   'toggleStrategy' : ActorMethod<[bigint], undefined>,
+  'updateNotificationEmailPref' : ActorMethod<[string, boolean], undefined>,
+  'updateStrategyPricing' : ActorMethod<
+    [bigint, number, number, boolean],
+    undefined
+  >,
   'updateTrade' : ActorMethod<[bigint, string, number], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;

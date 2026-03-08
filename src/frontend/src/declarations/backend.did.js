@@ -8,6 +8,15 @@
 
 import { IDL } from '@icp-sdk/core/candid';
 
+export const Notification = IDL.Record({
+  'id' : IDL.Nat,
+  'userId' : IDL.Text,
+  'notificationType' : IDL.Text,
+  'read' : IDL.Bool,
+  'message' : IDL.Text,
+  'emailEnabled' : IDL.Bool,
+  'timestamp' : IDL.Int,
+});
 export const UserRole = IDL.Variant({
   'admin' : IDL.Null,
   'user' : IDL.Null,
@@ -20,6 +29,23 @@ export const ApiKey = IDL.Record({
   'name' : IDL.Text,
   'createdAt' : IDL.Int,
   'keyHash' : IDL.Text,
+});
+export const MarketplaceListing = IDL.Record({
+  'id' : IDL.Nat,
+  'lifetimePrice' : IDL.Float64,
+  'createdAt' : IDL.Int,
+  'creatorId' : IDL.Text,
+  'description' : IDL.Text,
+  'isFree' : IDL.Bool,
+  'creatorName' : IDL.Text,
+  'sharpeRatio' : IDL.Float64,
+  'enabled' : IDL.Bool,
+  'subscribers' : IDL.Nat,
+  'monthlyPrice' : IDL.Float64,
+  'assetType' : IDL.Text,
+  'winRate' : IDL.Float64,
+  'strategyName' : IDL.Text,
+  'maxDrawdown' : IDL.Float64,
 });
 export const Trade = IDL.Record({
   'id' : IDL.Nat,
@@ -57,6 +83,14 @@ export const BrokerConfig = IDL.Record({
   'liveMode' : IDL.Bool,
   'tradingMode' : IDL.Text,
 });
+export const BrokerConnection = IDL.Record({
+  'broker' : IDL.Text,
+  'paperMode' : IDL.Bool,
+  'secret' : IDL.Text,
+  'apiKey' : IDL.Text,
+  'connected' : IDL.Bool,
+  'accessToken' : IDL.Text,
+});
 export const Candle = IDL.Record({
   'low' : IDL.Float64,
   'timeframe' : IDL.Text,
@@ -66,6 +100,13 @@ export const Candle = IDL.Record({
   'volume' : IDL.Nat,
   'timestamp' : IDL.Int,
   'symbol' : IDL.Text,
+});
+export const ExtendedRiskSettings = IDL.Record({
+  'autoStopTrading' : IDL.Bool,
+  'maxOpenTrades' : IDL.Nat,
+  'capitalAllocation' : IDL.Float64,
+  'maxTradeRisk' : IDL.Float64,
+  'maxDailyLoss' : IDL.Float64,
 });
 export const BacktestResult = IDL.Record({
   'id' : IDL.Nat,
@@ -105,9 +146,21 @@ export const Strategy = IDL.Record({
   'targetPercent' : IDL.Float64,
   'strategyType' : IDL.Text,
 });
+export const SubscriptionRecord = IDL.Record({
+  'active' : IDL.Bool,
+  'subscribedAt' : IDL.Int,
+  'listingId' : IDL.Nat,
+  'userId' : IDL.Text,
+  'plan' : IDL.Text,
+});
 
 export const idlService = IDL.Service({
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+  'addNotification' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Text],
+      [Notification],
+      [],
+    ),
   'addStrategy' : IDL.Func(
       [
         IDL.Text,
@@ -132,6 +185,7 @@ export const idlService = IDL.Service({
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
   'clearNinetwentyState' : IDL.Func([], [], []),
   'closeTrade' : IDL.Func([IDL.Nat], [], []),
+  'disconnectBroker' : IDL.Func([IDL.Text], [], []),
   'exitAllTrades' : IDL.Func([], [], []),
   'followUser' : IDL.Func([IDL.Principal], [], []),
   'forceAddDailyCandle' : IDL.Func(
@@ -149,6 +203,11 @@ export const idlService = IDL.Service({
       [],
     ),
   'generateApiKey' : IDL.Func([IDL.Text], [ApiKey], []),
+  'getActiveMarketplaceListings' : IDL.Func(
+      [],
+      [IDL.Vec(MarketplaceListing)],
+      ['query'],
+    ),
   'getAdminDashboardStats' : IDL.Func(
       [],
       [
@@ -183,6 +242,7 @@ export const idlService = IDL.Service({
       ['query'],
     ),
   'getBrokerConfig' : IDL.Func([], [BrokerConfig], ['query']),
+  'getBrokerConnections' : IDL.Func([], [IDL.Vec(BrokerConnection)], ['query']),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
   'getCandles' : IDL.Func(
@@ -190,14 +250,27 @@ export const idlService = IDL.Service({
       [IDL.Vec(Candle)],
       ['query'],
     ),
+  'getExtendedRiskSettings' : IDL.Func([], [ExtendedRiskSettings], ['query']),
+  'getMarketplaceListings' : IDL.Func(
+      [],
+      [IDL.Vec(MarketplaceListing)],
+      ['query'],
+    ),
   'getMyApiKeys' : IDL.Func([], [IDL.Vec(ApiKey)], ['query']),
   'getMyBacktestResults' : IDL.Func([], [IDL.Vec(BacktestResult)], ['query']),
+  'getMyNotifications' : IDL.Func([], [IDL.Vec(Notification)], ['query']),
   'getMyTrades' : IDL.Func([], [IDL.Vec(Trade)], ['query']),
   'getNinetwentyLine' : IDL.Func([], [IDL.Float64], ['query']),
   'getNinetwentyState' : IDL.Func([], [NinetwentyState], ['query']),
+  'getNotificationUnreadCount' : IDL.Func([], [IDL.Nat], ['query']),
   'getPendingCreators' : IDL.Func(
       [],
       [IDL.Vec(IDL.Tuple(IDL.Principal, UserProfile))],
+      ['query'],
+    ),
+  'getPublicUserProfile' : IDL.Func(
+      [IDL.Principal],
+      [IDL.Opt(UserProfile)],
       ['query'],
     ),
   'getRiskSettings' : IDL.Func([], [RiskSettings], ['query']),
@@ -208,7 +281,13 @@ export const idlService = IDL.Service({
       [IDL.Opt(UserProfile)],
       ['query'],
     ),
+  'getUserSubscriptions' : IDL.Func(
+      [],
+      [IDL.Vec(SubscriptionRecord)],
+      ['query'],
+    ),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+  'markNotificationsRead' : IDL.Func([], [], []),
   'modifyStopLoss' : IDL.Func([IDL.Nat, IDL.Float64], [], []),
   'rejectCreator' : IDL.Func([IDL.Principal], [], []),
   'revokeApiKey' : IDL.Func([IDL.Nat], [], []),
@@ -240,7 +319,33 @@ export const idlService = IDL.Service({
       [],
       [],
     ),
+  'saveBrokerConnection' : IDL.Func(
+      [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Bool],
+      [],
+      [],
+    ),
   'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
+  'saveExtendedRiskSettings' : IDL.Func(
+      [IDL.Float64, IDL.Float64, IDL.Nat, IDL.Float64, IDL.Bool],
+      [],
+      [],
+    ),
+  'saveMarketplaceListing' : IDL.Func(
+      [
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        IDL.Text,
+        IDL.Float64,
+        IDL.Float64,
+        IDL.Float64,
+        IDL.Float64,
+        IDL.Float64,
+        IDL.Bool,
+      ],
+      [IDL.Nat],
+      [],
+    ),
   'saveRiskSettings' : IDL.Func(
       [IDL.Float64, IDL.Nat, IDL.Float64, IDL.Bool],
       [],
@@ -253,15 +358,31 @@ export const idlService = IDL.Service({
       [],
     ),
   'setTradingMode' : IDL.Func([IDL.Text], [], []),
+  'subscribeToStrategy' : IDL.Func([IDL.Nat, IDL.Text], [], []),
   'toggleAlgorithm' : IDL.Func([], [], []),
   'toggleSquareOffMode' : IDL.Func([], [], []),
   'toggleStrategy' : IDL.Func([IDL.Nat], [], []),
+  'updateNotificationEmailPref' : IDL.Func([IDL.Text, IDL.Bool], [], []),
+  'updateStrategyPricing' : IDL.Func(
+      [IDL.Nat, IDL.Float64, IDL.Float64, IDL.Bool],
+      [],
+      [],
+    ),
   'updateTrade' : IDL.Func([IDL.Nat, IDL.Text, IDL.Float64], [], []),
 });
 
 export const idlInitArgs = [];
 
 export const idlFactory = ({ IDL }) => {
+  const Notification = IDL.Record({
+    'id' : IDL.Nat,
+    'userId' : IDL.Text,
+    'notificationType' : IDL.Text,
+    'read' : IDL.Bool,
+    'message' : IDL.Text,
+    'emailEnabled' : IDL.Bool,
+    'timestamp' : IDL.Int,
+  });
   const UserRole = IDL.Variant({
     'admin' : IDL.Null,
     'user' : IDL.Null,
@@ -274,6 +395,23 @@ export const idlFactory = ({ IDL }) => {
     'name' : IDL.Text,
     'createdAt' : IDL.Int,
     'keyHash' : IDL.Text,
+  });
+  const MarketplaceListing = IDL.Record({
+    'id' : IDL.Nat,
+    'lifetimePrice' : IDL.Float64,
+    'createdAt' : IDL.Int,
+    'creatorId' : IDL.Text,
+    'description' : IDL.Text,
+    'isFree' : IDL.Bool,
+    'creatorName' : IDL.Text,
+    'sharpeRatio' : IDL.Float64,
+    'enabled' : IDL.Bool,
+    'subscribers' : IDL.Nat,
+    'monthlyPrice' : IDL.Float64,
+    'assetType' : IDL.Text,
+    'winRate' : IDL.Float64,
+    'strategyName' : IDL.Text,
+    'maxDrawdown' : IDL.Float64,
   });
   const Trade = IDL.Record({
     'id' : IDL.Nat,
@@ -311,6 +449,14 @@ export const idlFactory = ({ IDL }) => {
     'liveMode' : IDL.Bool,
     'tradingMode' : IDL.Text,
   });
+  const BrokerConnection = IDL.Record({
+    'broker' : IDL.Text,
+    'paperMode' : IDL.Bool,
+    'secret' : IDL.Text,
+    'apiKey' : IDL.Text,
+    'connected' : IDL.Bool,
+    'accessToken' : IDL.Text,
+  });
   const Candle = IDL.Record({
     'low' : IDL.Float64,
     'timeframe' : IDL.Text,
@@ -320,6 +466,13 @@ export const idlFactory = ({ IDL }) => {
     'volume' : IDL.Nat,
     'timestamp' : IDL.Int,
     'symbol' : IDL.Text,
+  });
+  const ExtendedRiskSettings = IDL.Record({
+    'autoStopTrading' : IDL.Bool,
+    'maxOpenTrades' : IDL.Nat,
+    'capitalAllocation' : IDL.Float64,
+    'maxTradeRisk' : IDL.Float64,
+    'maxDailyLoss' : IDL.Float64,
   });
   const BacktestResult = IDL.Record({
     'id' : IDL.Nat,
@@ -359,9 +512,21 @@ export const idlFactory = ({ IDL }) => {
     'targetPercent' : IDL.Float64,
     'strategyType' : IDL.Text,
   });
+  const SubscriptionRecord = IDL.Record({
+    'active' : IDL.Bool,
+    'subscribedAt' : IDL.Int,
+    'listingId' : IDL.Nat,
+    'userId' : IDL.Text,
+    'plan' : IDL.Text,
+  });
   
   return IDL.Service({
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
+    'addNotification' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Text],
+        [Notification],
+        [],
+      ),
     'addStrategy' : IDL.Func(
         [
           IDL.Text,
@@ -386,6 +551,7 @@ export const idlFactory = ({ IDL }) => {
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
     'clearNinetwentyState' : IDL.Func([], [], []),
     'closeTrade' : IDL.Func([IDL.Nat], [], []),
+    'disconnectBroker' : IDL.Func([IDL.Text], [], []),
     'exitAllTrades' : IDL.Func([], [], []),
     'followUser' : IDL.Func([IDL.Principal], [], []),
     'forceAddDailyCandle' : IDL.Func(
@@ -403,6 +569,11 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'generateApiKey' : IDL.Func([IDL.Text], [ApiKey], []),
+    'getActiveMarketplaceListings' : IDL.Func(
+        [],
+        [IDL.Vec(MarketplaceListing)],
+        ['query'],
+      ),
     'getAdminDashboardStats' : IDL.Func(
         [],
         [
@@ -437,6 +608,11 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getBrokerConfig' : IDL.Func([], [BrokerConfig], ['query']),
+    'getBrokerConnections' : IDL.Func(
+        [],
+        [IDL.Vec(BrokerConnection)],
+        ['query'],
+      ),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
     'getCandles' : IDL.Func(
@@ -444,14 +620,27 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(Candle)],
         ['query'],
       ),
+    'getExtendedRiskSettings' : IDL.Func([], [ExtendedRiskSettings], ['query']),
+    'getMarketplaceListings' : IDL.Func(
+        [],
+        [IDL.Vec(MarketplaceListing)],
+        ['query'],
+      ),
     'getMyApiKeys' : IDL.Func([], [IDL.Vec(ApiKey)], ['query']),
     'getMyBacktestResults' : IDL.Func([], [IDL.Vec(BacktestResult)], ['query']),
+    'getMyNotifications' : IDL.Func([], [IDL.Vec(Notification)], ['query']),
     'getMyTrades' : IDL.Func([], [IDL.Vec(Trade)], ['query']),
     'getNinetwentyLine' : IDL.Func([], [IDL.Float64], ['query']),
     'getNinetwentyState' : IDL.Func([], [NinetwentyState], ['query']),
+    'getNotificationUnreadCount' : IDL.Func([], [IDL.Nat], ['query']),
     'getPendingCreators' : IDL.Func(
         [],
         [IDL.Vec(IDL.Tuple(IDL.Principal, UserProfile))],
+        ['query'],
+      ),
+    'getPublicUserProfile' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Opt(UserProfile)],
         ['query'],
       ),
     'getRiskSettings' : IDL.Func([], [RiskSettings], ['query']),
@@ -462,7 +651,13 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Opt(UserProfile)],
         ['query'],
       ),
+    'getUserSubscriptions' : IDL.Func(
+        [],
+        [IDL.Vec(SubscriptionRecord)],
+        ['query'],
+      ),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
+    'markNotificationsRead' : IDL.Func([], [], []),
     'modifyStopLoss' : IDL.Func([IDL.Nat, IDL.Float64], [], []),
     'rejectCreator' : IDL.Func([IDL.Principal], [], []),
     'revokeApiKey' : IDL.Func([IDL.Nat], [], []),
@@ -494,7 +689,33 @@ export const idlFactory = ({ IDL }) => {
         [],
         [],
       ),
+    'saveBrokerConnection' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Text, IDL.Text, IDL.Bool],
+        [],
+        [],
+      ),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
+    'saveExtendedRiskSettings' : IDL.Func(
+        [IDL.Float64, IDL.Float64, IDL.Nat, IDL.Float64, IDL.Bool],
+        [],
+        [],
+      ),
+    'saveMarketplaceListing' : IDL.Func(
+        [
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Text,
+          IDL.Float64,
+          IDL.Float64,
+          IDL.Float64,
+          IDL.Float64,
+          IDL.Float64,
+          IDL.Bool,
+        ],
+        [IDL.Nat],
+        [],
+      ),
     'saveRiskSettings' : IDL.Func(
         [IDL.Float64, IDL.Nat, IDL.Float64, IDL.Bool],
         [],
@@ -507,9 +728,16 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'setTradingMode' : IDL.Func([IDL.Text], [], []),
+    'subscribeToStrategy' : IDL.Func([IDL.Nat, IDL.Text], [], []),
     'toggleAlgorithm' : IDL.Func([], [], []),
     'toggleSquareOffMode' : IDL.Func([], [], []),
     'toggleStrategy' : IDL.Func([IDL.Nat], [], []),
+    'updateNotificationEmailPref' : IDL.Func([IDL.Text, IDL.Bool], [], []),
+    'updateStrategyPricing' : IDL.Func(
+        [IDL.Nat, IDL.Float64, IDL.Float64, IDL.Bool],
+        [],
+        [],
+      ),
     'updateTrade' : IDL.Func([IDL.Nat, IDL.Text, IDL.Float64], [], []),
   });
 };

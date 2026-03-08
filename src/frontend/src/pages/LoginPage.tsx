@@ -54,7 +54,7 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background grid-bg">
+    <div className="min-h-screen flex flex-col bg-transparent">
       <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-profit/3 pointer-events-none" />
 
       <header className="p-4 md:p-6">

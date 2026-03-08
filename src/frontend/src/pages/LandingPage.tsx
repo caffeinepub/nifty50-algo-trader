@@ -91,10 +91,8 @@ export function LandingPage() {
 
       <main className="flex-1">
         {/* Hero */}
-        <section className="relative overflow-hidden grid-bg">
-          <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-background pointer-events-none" />
-          <div className="absolute top-20 right-10 w-72 h-72 rounded-full bg-primary/5 blur-3xl pointer-events-none" />
-          <div className="absolute bottom-10 left-10 w-56 h-56 rounded-full bg-profit/5 blur-3xl pointer-events-none" />
+        <section className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-background pointer-events-none" />
 
           <div className="relative max-w-7xl mx-auto px-4 md:px-6 pt-24 pb-20 text-center">
             <motion.div
@@ -116,7 +114,7 @@ export function LandingPage() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.1 }}
             >
-              Trade <span className="text-primary">NIFTY 50</span>
+              Trade <span className="text-neon-primary">NIFTY 50</span>
               <br />
               with Algorithms
             </motion.h1>
@@ -240,7 +238,7 @@ export function LandingPage() {
               >
                 <h2 className="font-display text-3xl font-bold mb-4">
                   Built for Serious{" "}
-                  <span className="text-primary">Algo Traders</span>
+                  <span className="text-neon-accent">Algo Traders</span>
                 </h2>
                 <p className="text-muted-foreground mb-6 leading-relaxed">
                   Whether you're testing your first strategy or running a live
@@ -315,7 +313,7 @@ export function LandingPage() {
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
           >
-            <div className="bg-gradient-to-r from-primary/10 via-primary/5 to-profit/10 border border-primary/20 rounded-2xl p-12">
+            <div className="bg-gradient-to-r from-primary/10 via-secondary/80 to-profit/10 border border-primary/30 rounded-2xl p-12 shadow-neon-card">
               <TrendingUp className="w-12 h-12 text-primary mx-auto mb-4" />
               <h2 className="font-display text-3xl md:text-4xl font-bold mb-3">
                 Ready to Automate Your Trading?

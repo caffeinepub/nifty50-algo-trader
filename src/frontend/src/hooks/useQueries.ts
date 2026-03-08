@@ -604,3 +604,302 @@ export function useClearNinetwentyState() {
     },
   });
 }
+
+// ── Marketplace ───────────────────────────────────────────────────────────────
+
+export function useActiveMarketplaceListings() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["activeMarketplaceListings"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getActiveMarketplaceListings();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useAllMarketplaceListings() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["allMarketplaceListings"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getMarketplaceListings();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useSaveMarketplaceListing() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: {
+      strategyName: string;
+      creatorName: string;
+      description: string;
+      assetType: string;
+      winRate: number;
+      sharpeRatio: number;
+      maxDrawdown: number;
+      monthlyPrice: number;
+      lifetimePrice: number;
+      isFree: boolean;
+    }) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.saveMarketplaceListing(
+        params.strategyName,
+        params.creatorName,
+        params.description,
+        params.assetType,
+        params.winRate,
+        params.sharpeRatio,
+        params.maxDrawdown,
+        params.monthlyPrice,
+        params.lifetimePrice,
+        params.isFree,
+      );
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["activeMarketplaceListings"],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["allMarketplaceListings"],
+      });
+    },
+  });
+}
+
+export function useSubscribeToStrategy() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { listingId: bigint; plan: string }) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.subscribeToStrategy(params.listingId, params.plan);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["userSubscriptions"] });
+    },
+  });
+}
+
+export function useUserSubscriptions() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["userSubscriptions"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getUserSubscriptions();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useUpdateStrategyPricing() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: {
+      listingId: bigint;
+      monthlyPrice: number;
+      lifetimePrice: number;
+      isFree: boolean;
+    }) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.updateStrategyPricing(
+        params.listingId,
+        params.monthlyPrice,
+        params.lifetimePrice,
+        params.isFree,
+      );
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["allMarketplaceListings"],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["activeMarketplaceListings"],
+      });
+    },
+  });
+}
+
+// ── Extended Risk Settings ────────────────────────────────────────────────────
+
+export function useExtendedRiskSettings() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["extendedRiskSettings"],
+    queryFn: async () => {
+      if (!actor) return null;
+      return actor.getExtendedRiskSettings();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useSaveExtendedRiskSettings() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: {
+      maxDailyLoss: number;
+      maxTradeRisk: number;
+      maxOpenTrades: bigint;
+      capitalAllocation: number;
+      autoStopTrading: boolean;
+    }) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.saveExtendedRiskSettings(
+        params.maxDailyLoss,
+        params.maxTradeRisk,
+        params.maxOpenTrades,
+        params.capitalAllocation,
+        params.autoStopTrading,
+      );
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["extendedRiskSettings"],
+      });
+    },
+  });
+}
+
+// ── Broker Connections ────────────────────────────────────────────────────────
+
+export function useBrokerConnections() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["brokerConnections"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getBrokerConnections();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useSaveBrokerConnection() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: {
+      broker: string;
+      apiKey: string;
+      secret: string;
+      accessToken: string;
+      paperMode: boolean;
+    }) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.saveBrokerConnection(
+        params.broker,
+        params.apiKey,
+        params.secret,
+        params.accessToken,
+        params.paperMode,
+      );
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["brokerConnections"] });
+    },
+  });
+}
+
+export function useDisconnectBroker() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (broker: string) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.disconnectBroker(broker);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["brokerConnections"] });
+    },
+  });
+}
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+
+export function useMyNotifications() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["myNotifications"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getMyNotifications();
+    },
+    enabled: !!actor && !isFetching,
+    refetchInterval: 30000,
+  });
+}
+
+export function useNotificationUnreadCount() {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["notificationUnreadCount"],
+    queryFn: async () => {
+      if (!actor) return BigInt(0);
+      return actor.getNotificationUnreadCount();
+    },
+    enabled: !!actor && !isFetching,
+    refetchInterval: 30000,
+  });
+}
+
+export function useMarkNotificationsRead() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.markNotificationsRead();
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["myNotifications"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["notificationUnreadCount"],
+      });
+    },
+  });
+}
+
+export function useUpdateNotificationEmailPref() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: {
+      notificationType: string;
+      emailEnabled: boolean;
+    }) => {
+      if (!actor) throw new Error("Not authenticated");
+      return actor.updateNotificationEmailPref(
+        params.notificationType,
+        params.emailEnabled,
+      );
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["myNotifications"] });
+    },
+  });
+}
+
+// ── Public User Profile ───────────────────────────────────────────────────────
+
+export function usePublicUserProfile(
+  principal: import("@icp-sdk/core/principal").Principal | null,
+) {
+  const { actor, isFetching } = useActor();
+  return useQuery({
+    queryKey: ["publicUserProfile", principal?.toString()],
+    queryFn: async () => {
+      if (!actor || !principal) return null;
+      return actor.getPublicUserProfile(principal);
+    },
+    enabled: !!actor && !isFetching && !!principal,
+  });
+}

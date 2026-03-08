@@ -81,10 +81,12 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       boxShadow: {
-        xs: "0 1px 2px 0 rgba(0,0,0,0.3)",
-        glow: "0 0 20px oklch(0.72 0.14 200 / 0.2)",
-        "glow-profit": "0 0 16px oklch(0.7 0.18 150 / 0.25)",
-        "glow-loss": "0 0 16px oklch(0.58 0.22 25 / 0.25)",
+        xs: "0 1px 2px 0 rgba(0,0,0,0.4)",
+        glow: "0 0 24px oklch(0.86 0.18 205 / 0.3), 0 0 48px oklch(0.86 0.18 205 / 0.1)",
+        "glow-accent": "0 0 20px oklch(0.88 0.2 165 / 0.3), 0 0 40px oklch(0.88 0.2 165 / 0.1)",
+        "glow-profit": "0 0 16px oklch(0.88 0.2 165 / 0.3)",
+        "glow-loss": "0 0 16px oklch(0.6 0.24 25 / 0.3)",
+        "neon-card": "0 4px 24px oklch(0 0 0 / 0.5), 0 0 1px oklch(0.86 0.18 205 / 0.15)",
       },
       keyframes: {
         "accordion-down": {
@@ -103,12 +105,34 @@ export default {
           "0%": { transform: "translateX(0)" },
           "100%": { transform: "translateX(-50%)" },
         },
+        "candle-rise": {
+          "0%": { transform: "scaleY(0)", opacity: "0" },
+          "100%": { transform: "scaleY(1)", opacity: "1" },
+        },
+        "float-number": {
+          "0%": { transform: "translateY(0px)", opacity: "0" },
+          "10%": { opacity: "0.6" },
+          "90%": { opacity: "0.3" },
+          "100%": { transform: "translateY(-120px)", opacity: "0" },
+        },
+        "grid-pulse": {
+          "0%, 100%": { opacity: "0.4" },
+          "50%": { opacity: "0.8" },
+        },
+        "scan-line": {
+          "0%": { transform: "translateY(-100%)" },
+          "100%": { transform: "translateY(100vh)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "pulse-dot": "pulse-dot 2s ease-in-out infinite",
         ticker: "ticker 30s linear infinite",
+        "candle-rise": "candle-rise 0.5s ease-out forwards",
+        "float-number": "float-number 6s ease-in-out infinite",
+        "grid-pulse": "grid-pulse 4s ease-in-out infinite",
+        "scan-line": "scan-line 8s linear infinite",
       },
     },
   },

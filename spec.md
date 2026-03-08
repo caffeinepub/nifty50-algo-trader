@@ -1,102 +1,51 @@
 # NIFTY50 Algo Trader
 
 ## Current State
-
-- Registration page: Full Name + Email + Password fields, Internet Identity auth, saves UserProfile (name, email) to backend
-- Login page: Email + Password UI + Internet Identity auth, redirects to /dashboard
-- Dashboard: Portfolio stats, BrokerConfig (Upstox), Active Strategies panel, EquityChart, TradesTable
-- Admin page: Password-gated (/admin, password = Santhosh1@), 7 tabs: Overview, Trade Monitor, Strategies, Backtest, Paper/Live Mode, Broker API, Risk Management; plus 9:20 Candle Strategy tab
-- Backtest page: Strategy selector, date range, capital, risk; outputs P&L, drawdown, trade history
-- Backend (Motoko): UserProfile (name, email), BrokerConfig, Trade, Strategy, BacktestResult, RiskSettings, NinetwentyState; roles: admin/user/guest via authorization mixin
-- Routes: /, /login, /register, /dashboard, /dashboard/backtest, /admin
+- Full trading platform with dashboard, backtest, strategies, API keys, billing, marketplace (basic), profile, admin panel
+- Backend: Motoko with authorization, strategies, trades, risk settings, broker config, user profiles, backtests, 9:20 candle state
+- Frontend: React + TanStack Router, dark neon theme (#0B0F1A / #00E5FF / #00FFA3), animated landing background
+- Existing routes: /, /login, /register, /dashboard, /dashboard/backtest, /dashboard/strategies, /dashboard/api-keys, /dashboard/marketplace, /dashboard/billing, /dashboard/profile, /admin
+- Marketplace page exists but is basic (no equity charts, no max drawdown, no subscription tiers, no creator profile links)
+- No /dashboard/risk page
+- No /dashboard/brokers page (broker config exists in admin, not as user-facing page)
+- No /profile/:userId route
+- No notification system
 
 ## Requested Changes (Diff)
 
 ### Add
-
-**Registration page enhancements:**
-- Country dropdown (list of countries)
-- Experience Level selector: Beginner / Intermediate / Professional
-- Trading Market multi-select or selector: NIFTY / BankNifty / Stocks / Crypto
-- Password strength indicator (visual bar + requirements checklist)
-- Confirm Password field with match validation
-- Accept Terms & Privacy Policy checkbox
-- Store country, experienceLevel, tradingMarket, role in extended UserProfile
-- Backend: extend UserProfile type to include country, experienceLevel, tradingMarket, role fields
-
-**Login page enhancements:**
-- "Login with Google" button (UI-only, disabled with tooltip: "Coming soon")
-- "Login with GitHub" button (UI-only, disabled with tooltip: "Coming soon")
-- MFA notice section: show info about OTP/Authenticator (UI informational)
-
-**RBAC system:**
-- Roles: Admin, AlgoCreator, Trader, Viewer (mapped onto existing admin/user/guest)
-- Extended UserProfile stores role field
-- Role badge shown on dashboard header
-- Viewer role: read-only dashboard, no trade actions
-- AlgoCreator role: access to My Strategies + Marketplace
-- Trader role: full dashboard access
-- Admin: full access
-
-**New Dashboard sidebar navigation (tabs/sections):**
-- Dashboard (existing stats + charts)
-- My Strategies (list of user's strategies, add strategy CTA)
-- Backtesting (link to /dashboard/backtest)
-- Live Trading (redirect to live trades panel)
-- Paper Trading (redirect to paper trades panel)
-- Marketplace (algo marketplace UI - sell/buy algorithms)
-- API Keys (generate + manage API keys)
-- Billing (billing placeholder page)
-
-**API Keys page (/dashboard/api-keys):**
-- Generate API Key button
-- List of API keys (name, key masked, created date, status)
-- Connect Broker section: Upstox API, Zerodha API, Angel One API (each with API key + secret fields)
-- Backend: store ApiKey records per user
-
-**Algo Creator Profile page (/profile/:userId or /dashboard/profile):**
-- Profile header (name, role badge, join date)
-- Strategy List (user's strategies)
-- Backtest Results summary table
-- Sharpe Ratio stat
-- Win Rate stat
-- Followers count (mock)
-
-**Admin Approval System:**
-- New route /admin/approvals (inside admin panel as a new tab)
-- List of users who registered with role = AlgoCreator
-- Each row: name, email, registration date, Approve / Reject buttons
-- On approve: backend promotes user to AlgoCreator (custom role stored)
-- On reject: marks as rejected
-- Backend: add pendingApproval field to UserProfile; add approveUser / rejectUser admin functions
-
-**Backend additions:**
-- Extend UserProfile: add country, experienceLevel, tradingMarket, role, pendingApproval, followersCount, apiKeys fields
-- Add ApiKey type and per-user storage
-- Add generateApiKey / revokeApiKey / getMyApiKeys functions
-- Add approveCreator / rejectCreator admin functions
+1. **Strategy Marketplace** (/dashboard/marketplace) - enhanced with: per-card backtest equity sparkline chart, max drawdown metric, creator profile link, Buy/Sell flow, subscription tier cards (Free / Monthly ₹x / Lifetime ₹x), pricing editable by admin
+2. **Risk Management Panel** (/dashboard/risk) - user-facing page with: Max Daily Loss, Max Trade Risk, Max Open Trades, Capital Allocation %, Auto Stop Trading toggle; saves to backend
+3. **Notifications System** - bell icon in header with dropdown; notification types: Trade Executed, Stop Loss Hit, Target Hit, Strategy Started, Strategy Stopped; Email notification toggle per type
+4. **Broker Integration Page** (/dashboard/brokers) - user-facing page with tab cards for: Upstox, Zerodha, Angel One, Fyers, Paper Trading; each has API Key / Secret / Access Token / Status fields + Connect/Test/Disconnect buttons
+5. **Professional User Profile** (/profile/:userId) - public profile with: Name, Algo Creator Badge, strategy list, followers count, total profit, Sharpe Ratio, follow button
+6. **Strategy Subscription System** - on each marketplace card: Free tier, Monthly price (₹), Lifetime price (₹); admin can update pricing via admin panel subscription settings tab
 
 ### Modify
-
-- RegisterPage: replace minimal form with full 7-field form + password strength + terms checkbox
-- LoginPage: add social login buttons (UI-only disabled) + MFA info section
-- DashboardPage: add left sidebar navigation with all 8 sections, show role badge in header
-- routeTree.ts: add /dashboard/api-keys, /dashboard/profile, /dashboard/marketplace, /dashboard/billing routes
-- AdminPage: add new "User Approvals" tab
-- UserProfile backend type: extend with new fields
+- `routeTree.ts`: add /dashboard/risk, /dashboard/brokers, /profile/:userId routes
+- `MarketplacePage.tsx`: add equity sparkline charts, max drawdown metric, subscription tier modal, creator profile links
+- `AdminPage.tsx`: add Subscriptions tab for updating strategy pricing
+- `Header`: add notifications bell icon with dropdown
+- Backend `main.mo`: add marketplace strategy listing with pricing, risk management fields (maxTradeRisk, maxOpenTrades, capitalAllocation), notifications storage, broker configs per broker type, user subscription records
 
 ### Remove
-
-Nothing removed; all existing functionality preserved.
+- Nothing removed
 
 ## Implementation Plan
+1. Update backend (main.mo) with new types and functions:
+   - MarketplaceStrategyListing type with winRate, sharpeRatio, maxDrawdown, monthlyPrice, lifetimePrice, creatorId
+   - Extended RiskSettings: add maxTradeRisk (Float), maxOpenTrades (Nat), capitalAllocation (Float)
+   - Notification type and storage per user
+   - BrokerConnection type for multi-broker (upstox/zerodha/angelone/fyers/paper) per user
+   - SubscriptionRecord type per user per strategy
+   - Backend functions: getMarketplaceListings, saveMarketplaceListing, updateStrategyPricing (admin), subscribeToStrategy, getUserSubscriptions, saveExtendedRiskSettings, addNotification, getNotifications, markNotificationsRead, saveBrokerConnection, getBrokerConnections, getPublicUserProfile
 
-1. Extend Motoko backend: UserProfile type (country, experienceLevel, tradingMarket, role, pendingApproval, followersCount), ApiKey type, generateApiKey/revokeApiKey/getMyApiKeys, approveCreator/rejectCreator admin functions
-2. Regenerate backend.d.ts to reflect new types
-3. Update RegisterPage: 7-field form, password strength bar, confirm password, country dropdown, experience selector, trading market selector, terms checkbox
-4. Update LoginPage: social login buttons (disabled UI), MFA info panel
-5. Refactor DashboardPage: add collapsible sidebar nav (Dashboard, My Strategies, Backtesting, Live Trading, Paper Trading, Marketplace, API Keys, Billing), role badge in header
-6. Create new pages: ApiKeysPage, MarketplacePage, BillingPage, AlgoCreatorProfilePage
-7. Update AdminPage: add User Approvals tab with approve/reject workflow
-8. Update routeTree.ts: register new routes
-9. Update hooks/useQueries: add hooks for new backend APIs
+2. Frontend pages to create/modify:
+   - New: RiskManagementPage (/dashboard/risk)
+   - New: BrokersPage (/dashboard/brokers)  
+   - Enhanced: MarketplacePage (equity charts, drawdown, subscription modal, creator links)
+   - New: PublicProfilePage (/profile/:userId)
+   - Modified: routeTree.ts (add new routes)
+   - Modified: Header (notifications bell)
+   - Modified: AdminPage (subscriptions pricing tab)
+   - Modified: DashboardPage sidebar (add Risk, Brokers links)

@@ -131,7 +131,7 @@ export function LandingPage() {
             </motion.p>
 
             <motion.div
-              className="flex flex-col sm:flex-row gap-3 justify-center"
+              className="flex flex-col items-center gap-4"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.3 }}
@@ -139,7 +139,7 @@ export function LandingPage() {
               <Button
                 asChild
                 size="lg"
-                className="gap-2 glow-primary"
+                className="gap-2 glow-primary w-full sm:w-auto"
                 data-ocid="hero.primary_button"
               >
                 <Link to="/register">
@@ -147,15 +147,13 @@ export function LandingPage() {
                   <ArrowRight className="w-4 h-4" />
                 </Link>
               </Button>
-              <Button
-                asChild
-                size="lg"
-                variant="outline"
-                className="gap-2"
-                data-ocid="hero.secondary_button"
+              <Link
+                to="/login"
+                className="text-sm text-muted-foreground hover:text-primary transition-colors underline underline-offset-4"
+                data-ocid="hero.signin_link"
               >
-                <Link to="/login">Sign In to Dashboard</Link>
-              </Button>
+                Sign In
+              </Link>
             </motion.div>
 
             {/* Stats Row */}
@@ -322,25 +320,17 @@ export function LandingPage() {
                 Join the platform and start backtesting your NIFTY 50 strategies
                 today. No coding required.
               </p>
-              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <div className="flex justify-center">
                 <Button
                   asChild
                   size="lg"
-                  className="gap-2"
+                  className="gap-2 glow-primary"
                   data-ocid="cta.primary_button"
                 >
                   <Link to="/register">
-                    Create Free Account
+                    Start Trading
                     <ArrowRight className="w-4 h-4" />
                   </Link>
-                </Button>
-                <Button
-                  asChild
-                  size="lg"
-                  variant="outline"
-                  data-ocid="cta.secondary_button"
-                >
-                  <Link to="/login">Sign In</Link>
                 </Button>
               </div>
             </div>

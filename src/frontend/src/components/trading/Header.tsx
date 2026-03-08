@@ -392,21 +392,7 @@ export function Header() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-          ) : (
-            <>
-              <Button asChild variant="ghost" size="sm" data-ocid="nav.link">
-                <Link to="/login">Sign In</Link>
-              </Button>
-              <Button
-                asChild
-                size="sm"
-                className="hidden sm:flex"
-                data-ocid="nav.primary_button"
-              >
-                <Link to="/register">Get Started</Link>
-              </Button>
-            </>
-          )}
+          ) : null}
         </div>
       </nav>
     </header>

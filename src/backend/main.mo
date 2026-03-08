@@ -11,10 +11,10 @@ import Time "mo:core/Time";
 import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
 import List "mo:core/List";
-import Migration "migration";
+
 
 // With migration
-(with migration = Migration.run)
+
 actor {
   /* --- Types --- */
 

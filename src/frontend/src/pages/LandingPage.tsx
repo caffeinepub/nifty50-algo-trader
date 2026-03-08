@@ -147,13 +147,6 @@ export function LandingPage() {
                   <ArrowRight className="w-4 h-4" />
                 </Link>
               </Button>
-              <Link
-                to="/login"
-                className="text-sm text-muted-foreground hover:text-primary transition-colors underline underline-offset-4"
-                data-ocid="hero.signin_link"
-              >
-                Sign In
-              </Link>
             </motion.div>
 
             {/* Stats Row */}

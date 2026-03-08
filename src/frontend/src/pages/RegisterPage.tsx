@@ -31,11 +31,12 @@ import {
   X,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Footer } from "../components/trading/Footer";
+import { createActorWithConfig } from "../config";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
-import { useSaveUserProfile } from "../hooks/useQueries";
+import { getSecretParameter } from "../utils/urlParams";
 
 // ── Countries list ─────────────────────────────────────────────────────────────
 
@@ -151,8 +152,6 @@ export function RegisterPage() {
     loginError,
     isInitializing,
   } = useInternetIdentity();
-  const { mutateAsync: saveProfile, isPending: isSaving } =
-    useSaveUserProfile();
   const navigate = useNavigate();
 
   const [name, setName] = useState("");
@@ -166,7 +165,28 @@ export function RegisterPage() {
   const [tradingMarkets, setTradingMarkets] = useState<string[]>([]);
   const [role, setRole] = useState("Trader");
   const [acceptTerms, setAcceptTerms] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
+
+  // Keep a ref to the latest form values so the async save always reads current data
+  const formRef = useRef({
+    name,
+    email,
+    country,
+    experienceLevel,
+    tradingMarkets,
+    role,
+  });
+  useEffect(() => {
+    formRef.current = {
+      name,
+      email,
+      country,
+      experienceLevel,
+      tradingMarkets,
+      role,
+    };
+  }, [name, email, country, experienceLevel, tradingMarkets, role]);
 
   // Validation errors
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -184,58 +204,114 @@ export function RegisterPage() {
     );
   };
 
-  // After login, save profile
+  // After login, build a fresh authenticated actor directly and save the profile.
+  // This avoids all React Query cache timing issues — we own the actor lifecycle here.
   useEffect(() => {
     if (
       identity &&
       !identity.getPrincipal().isAnonymous() &&
       !profileSaved &&
-      name &&
-      email
+      !isSaving &&
+      formRef.current.name &&
+      formRef.current.email
     ) {
+      let cancelled = false;
+      setIsSaving(true);
+
       const save = async () => {
-        try {
-          await saveProfile({
-            name: name.trim(),
-            email: email.trim(),
-            country: country || "India",
-            experienceLevel: experienceLevel || "Beginner",
-            tradingMarket: tradingMarkets.join(",") || "NIFTY",
-            role: role,
-            pendingApproval: role === "AlgoCreator",
-            followersCount: BigInt(0),
-            joinedAt: BigInt(Date.now()),
-          });
-          setProfileSaved(true);
-          toast.success("Account created! Welcome to NIFTY50Algo.");
-          void navigate({ to: "/dashboard" });
-        } catch {
-          toast.error("Profile save failed. Please try updating in dashboard.");
+        const MAX_ATTEMPTS = 30; // 15 seconds total
+        const DELAY_MS = 500;
+
+        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+          if (cancelled) return;
+          try {
+            // Create a fresh actor with the authenticated identity each attempt
+            const actor = await createActorWithConfig({
+              agentOptions: { identity },
+            });
+            const adminToken = getSecretParameter("caffeineAdminToken") || "";
+            await actor._initializeAccessControlWithSecret(adminToken);
+
+            if (cancelled) return;
+
+            const {
+              name: n,
+              email: e,
+              country: c,
+              experienceLevel: exp,
+              tradingMarkets: tm,
+              role: r,
+            } = formRef.current;
+            await actor.saveCallerUserProfile({
+              name: n.trim(),
+              email: e.trim(),
+              country: c || "India",
+              experienceLevel: exp || "Beginner",
+              tradingMarket: tm.join(",") || "NIFTY",
+              role: r,
+              pendingApproval: r === "AlgoCreator",
+              followersCount: BigInt(0),
+              joinedAt: BigInt(Date.now()),
+            });
+
+            if (!cancelled) {
+              setProfileSaved(true);
+              setIsSaving(false);
+              toast.success("Account created! Welcome to NIFTY50Algo.");
+              void navigate({ to: "/dashboard" });
+            }
+            return;
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            const isTransient =
+              msg.includes("Not authenticated") ||
+              msg.includes("Anonymous") ||
+              msg.includes("not initialized") ||
+              msg.includes("Failed to fetch") ||
+              msg.includes("network") ||
+              msg.toLowerCase().includes("timeout");
+
+            if (isTransient && attempt < MAX_ATTEMPTS - 1) {
+              await new Promise((r) => setTimeout(r, DELAY_MS));
+              continue;
+            }
+
+            // Non-transient error or exhausted retries
+            if (!cancelled) {
+              setIsSaving(false);
+              toast.error(
+                "Profile save failed. Please update your profile in Settings.",
+              );
+              void navigate({ to: "/dashboard" });
+            }
+            return;
+          }
+        }
+
+        // Should not reach here, but guard anyway
+        if (!cancelled) {
+          setIsSaving(false);
+          toast.error(
+            "Profile save timed out. Please update your profile in Settings.",
+          );
           void navigate({ to: "/dashboard" });
         }
       };
+
       void save();
-    } else if (
-      identity &&
-      !identity.getPrincipal().isAnonymous() &&
-      profileSaved
-    ) {
+      return () => {
+        cancelled = true;
+      };
+    }
+    if (identity && !identity.getPrincipal().isAnonymous() && profileSaved) {
       void navigate({ to: "/dashboard" });
     }
-  }, [
-    identity,
-    profileSaved,
-    name,
-    email,
-    saveProfile,
-    navigate,
-    country,
-    experienceLevel,
-    tradingMarkets,
-    role,
-  ]);
+  }, [identity, profileSaved, isSaving, navigate]);
 
-  const validate = (): boolean => {
+  // Pure validation -- does NOT call setErrors so it can run synchronously
+  // inside the click handler before calling login() (which needs to be called
+  // as a direct result of the user gesture to avoid browser popup blocking).
+  const buildErrors = (): Record<string, string> => {
     const newErrors: Record<string, string> = {};
 
     if (!name.trim()) newErrors.name = "Full name is required";
@@ -262,13 +338,20 @@ export function RegisterPage() {
     if (!acceptTerms)
       newErrors.acceptTerms = "You must accept the terms and privacy policy";
 
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return newErrors;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validate()) return;
+    const newErrors = buildErrors();
+    if (Object.keys(newErrors).length > 0) {
+      // Show errors and stop -- do NOT call login() so no popup is triggered
+      setErrors(newErrors);
+      return;
+    }
+    // Clear any stale errors and call login() synchronously while still inside
+    // the user-gesture handler so the Internet Identity popup is not blocked.
+    setErrors({});
     login();
   };
 

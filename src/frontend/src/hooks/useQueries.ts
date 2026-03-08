@@ -317,10 +317,12 @@ export function useUserProfile() {
 }
 
 export function useSaveUserProfile() {
-  const { actor } = useActor();
+  const { actor, isFetching } = useActor();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (profile: UserProfile) => {
+      // Reject immediately if actor is still initialising or is anonymous
+      if (isFetching) throw new Error("not initialized");
       if (!actor) throw new Error("Not authenticated");
       return actor.saveCallerUserProfile(profile);
     },

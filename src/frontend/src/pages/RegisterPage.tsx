@@ -341,6 +341,16 @@ export function RegisterPage() {
     return newErrors;
   };
 
+  // If the user already has a valid authenticated identity (e.g. existing II session),
+  // trigger the profile save directly without opening the II popup. The save useEffect
+  // watches `identity` so updating a local flag is enough.
+  const [triggerSaveDirectly, setTriggerSaveDirectly] = useState(false);
+
+  // When we detect an already-authenticated identity before the user even clicks,
+  // just proceed straight to the save flow once form is submitted.
+  const isAlreadyAuthenticated =
+    identity !== undefined && !identity.getPrincipal().isAnonymous();
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors = buildErrors();
@@ -349,11 +359,126 @@ export function RegisterPage() {
       setErrors(newErrors);
       return;
     }
-    // Clear any stale errors and call login() synchronously while still inside
-    // the user-gesture handler so the Internet Identity popup is not blocked.
     setErrors({});
-    login();
+
+    if (isAlreadyAuthenticated) {
+      // Identity already valid -- skip II popup and go straight to profile save
+      setTriggerSaveDirectly(true);
+    } else {
+      // Call login() synchronously inside the user-gesture handler so the
+      // Internet Identity popup is not blocked by the browser.
+      login();
+    }
   };
+
+  // When triggerSaveDirectly is set, kick off the profile save immediately.
+  useEffect(() => {
+    if (
+      triggerSaveDirectly &&
+      isAlreadyAuthenticated &&
+      identity &&
+      !profileSaved &&
+      !isSaving &&
+      formRef.current.name &&
+      formRef.current.email
+    ) {
+      // Reset flag and let the main save effect handle it by re-asserting identity state.
+      setTriggerSaveDirectly(false);
+      // Force the main save effect to fire by nudging isSaving.
+      // We accomplish this by directly running the save inline here.
+      let cancelled = false;
+      setIsSaving(true);
+
+      const save = async () => {
+        const MAX_ATTEMPTS = 30;
+        const DELAY_MS = 500;
+
+        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+          if (cancelled) return;
+          try {
+            const actor = await createActorWithConfig({
+              agentOptions: { identity },
+            });
+            const adminToken = getSecretParameter("caffeineAdminToken") || "";
+            await actor._initializeAccessControlWithSecret(adminToken);
+
+            if (cancelled) return;
+
+            const {
+              name: n,
+              email: e,
+              country: c,
+              experienceLevel: exp,
+              tradingMarkets: tm,
+              role: r,
+            } = formRef.current;
+            await actor.saveCallerUserProfile({
+              name: n.trim(),
+              email: e.trim(),
+              country: c || "India",
+              experienceLevel: exp || "Beginner",
+              tradingMarket: tm.join(",") || "NIFTY",
+              role: r,
+              pendingApproval: r === "AlgoCreator",
+              followersCount: BigInt(0),
+              joinedAt: BigInt(Date.now()),
+            });
+
+            if (!cancelled) {
+              setProfileSaved(true);
+              setIsSaving(false);
+              toast.success("Account created! Welcome to NIFTY50Algo.");
+              void navigate({ to: "/dashboard" });
+            }
+            return;
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            const isTransient =
+              msg.includes("Not authenticated") ||
+              msg.includes("Anonymous") ||
+              msg.includes("not initialized") ||
+              msg.includes("Failed to fetch") ||
+              msg.includes("network") ||
+              msg.toLowerCase().includes("timeout");
+
+            if (isTransient && attempt < MAX_ATTEMPTS - 1) {
+              await new Promise((r) => setTimeout(r, DELAY_MS));
+              continue;
+            }
+
+            if (!cancelled) {
+              setIsSaving(false);
+              toast.error(
+                "Profile save failed. Please update your profile in Settings.",
+              );
+              void navigate({ to: "/dashboard" });
+            }
+            return;
+          }
+        }
+
+        if (!cancelled) {
+          setIsSaving(false);
+          toast.error(
+            "Profile save timed out. Please update your profile in Settings.",
+          );
+          void navigate({ to: "/dashboard" });
+        }
+      };
+
+      void save();
+      return () => {
+        cancelled = true;
+      };
+    }
+  }, [
+    triggerSaveDirectly,
+    isAlreadyAuthenticated,
+    identity,
+    profileSaved,
+    isSaving,
+    navigate,
+  ]);
 
   return (
     <div className="min-h-screen flex flex-col bg-background grid-bg">
